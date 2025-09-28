@@ -5,6 +5,76 @@ import { genarateAccessToken } from '~/utils/genarateTokens'
 import { sendResetPasswordEmail } from '../utils/mailer'
 import { generateResetToken } from '../utils/genarateTokens'
 import crypto from 'crypto'
+import { OAuth2Client } from 'google-auth-library'
+import { env } from '~/config/environment'
+
+const client = new OAuth2Client(env.GG_CLIENT_ID)
+
+const loginWithGoogle = async (req, res) => {
+  try {
+    const { idToken } = req.body
+    if (!idToken) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: 'Thiếu idToken' })
+    }
+
+    // Verify token
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: env.GG_CLIENT_ID
+    })
+    const payload = ticket.getPayload()
+    console.log('payload: ', payload)
+
+    // payload chứa: email, name, picture, sub (unique Google user id)
+    const { email, name, picture, sub } = payload
+
+    // Tìm user trong DB
+    let user = await User.findOne({ email })
+    if (!user) {
+      // Nếu chưa có thì tạo mới
+      user = new User({
+        email,
+        name,
+        avatar: picture,
+        phone: '', // Google không trả phone
+        password: '', // không cần password
+        isActive: true,
+        role: 'customer',
+        googleId: sub
+      })
+      await user.save()
+    }
+
+    // Kiểm tra tài khoản bị khóa
+    if (!user.isActive) {
+      return res.status(StatusCodes.FORBIDDEN).json({ message: 'Tài khoản đã bị khóa' })
+    }
+
+    // Payload để generate token
+    const jwtPayload = {
+      _id: user._id,
+      role: user.role,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar
+    }
+
+    const accessToken = genarateAccessToken(jwtPayload)
+
+    // Set cookie HttpOnly
+    res.cookie('token', accessToken, {
+      httpOnly: true,
+      secure: false, // true nếu deploy https
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000
+    })
+
+    res.json({ message: 'Google login successful', user: jwtPayload })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Google login failed', error: err.message })
+  }
+}
 
 const registerByPhone = async (req, res) => {
   try {
@@ -151,5 +221,6 @@ export const authController = {
   login,
   logout,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  loginWithGoogle
 }

@@ -18,5 +18,6 @@ router.post('/upload-avatar', authMiddleware.authenTokenCookie, upload.single('a
 router.put('/change-password', authValidation.changePassword, authMiddleware.authenTokenCookie, userController.changePassword)
 router.post('/forgot-password', authValidation.forgotPassword, authController.forgotPassword)
 router.post('/reset-password/:token', authValidation.resetPassword, authController.resetPassword)
+router.post('/google', authController.loginWithGoogle)
 
 export default router

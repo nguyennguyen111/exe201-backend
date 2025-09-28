@@ -5,18 +5,25 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       lowercase: true,
-      trim: true
+      trim: true,
+      unique: true, // mỗi email chỉ 1 account
+      sparse: true  // cho phép user không có email (tránh lỗi index duplicate null)
     },
     phone: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true, // cho phép user không có phone
       trim: true,
       match: [/^0[0-9]{9}$/, 'Invalid Phone Number']
     },
     password: {
-      type: String,
-      required: true
+      type: String
+      // ❌ bỏ required, để user Google không cần password
+    },
+    googleId: {
+      type: String, // lưu Google sub id để map lại
+      unique: true,
+      sparse: true
     },
     role: {
       type: String,
@@ -25,7 +32,6 @@ const userSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: true,
       minlength: 2,
       maxlength: 30
     },
@@ -73,7 +79,6 @@ const userSchema = new mongoose.Schema(
     resetTokenExpires: {
       type: Date
     }
-
   },
   {
     timestamps: true
