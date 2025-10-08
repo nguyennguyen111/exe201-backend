@@ -33,7 +33,7 @@ const unlockUser = async (req, res) => {
 
 const countCustomers = async (req, res) => {
   try {
-    const totalCustomers = await User.countDocuments({ role: 'customer' });
+    const totalCustomers = await User.countDocuments({ role: 'student' });
     res.status(StatusCodes.OK).json({
       success: true,
       totalCustomers

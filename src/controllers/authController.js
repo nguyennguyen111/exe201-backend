@@ -5,8 +5,10 @@ import { genarateAccessToken } from '~/utils/genarateTokens'
 import { sendResetPasswordEmail } from '../utils/mailer'
 import { generateResetToken } from '../utils/genarateTokens'
 import crypto from 'crypto'
+import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
 import { env } from '~/config/environment'
+import PendingRegistration from '~/models/PendingRegistration'
 
 const client = new OAuth2Client(env.GG_CLIENT_ID)
 
@@ -39,7 +41,7 @@ const loginWithGoogle = async (req, res) => {
         phone: '', // Google không trả phone
         password: '', // không cần password
         isActive: true,
-        role: 'customer',
+        role: 'student',
         googleId: sub
       })
       await user.save()
@@ -95,6 +97,109 @@ const registerByPhone = async (req, res) => {
     res.status(500).json({ message: 'Lỗi server', error: err.message })
   }
 }
+
+export const registerByPhoneStart = async (req, res) => {
+  try {
+    const { phone, password, name, email } = req.body
+    if (!phone || !password || !name || !email) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: 'Thiếu dữ liệu' })
+    }
+
+    const existed = await User.findOne({ $or: [{ phone }, { email }] })
+    if (existed) {
+      return res.status(StatusCodes.CONFLICT).json({ message: 'SĐT hoặc email đã tồn tại' })
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10)
+    const token = crypto.randomBytes(32).toString('hex')
+    const expireAt = new Date(Date.now() + 3 * 60 * 1000)
+
+    await PendingRegistration.deleteMany({ $or: [{ phone }, { email }] })
+    await PendingRegistration.create({ token, phone, email, name, passwordHash, expireAt })
+
+    const verifyUrl = `${env.CLIENT_URL}verify-email?token=${token}`
+
+    const transporter = nodemailer.createTransport({
+      service: 'Gmail',
+      auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS }
+    })
+
+    await transporter.sendMail({
+      from: env.EMAIL_FROM || env.EMAIL_USER,
+      to: email,
+      subject: 'Xác nhận đăng ký tài khoản',
+      html: `
+        <p>Chào ${name},</p>
+        <p>Bạn có 3 phút để xác nhận đăng ký. Nhấn vào link sau để hoàn tất:</p>
+        <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+      `
+    })
+
+    return res.status(StatusCodes.CREATED).json({ message: 'Đã gửi email xác nhận' })
+  } catch (err) {
+    return res.status(500).json({ message: 'Lỗi server', error: err.message })
+  }
+}
+
+// B2: click link xác nhận → tạo User thật
+// controllers/authController.js
+export const registerByPhoneConfirm = async (req, res) => {
+  try {
+    const { token } = req.query
+    if (!token) return res.status(400).json({ message: 'Thiếu token' })
+
+    // ✅ ATOMIC: chỉ request đầu tiên mới cập nhật được consumed:true
+    const pending = await PendingRegistration.findOneAndUpdate(
+      { token, expireAt: { $gt: new Date() }, consumed: false },
+      { $set: { consumed: true } },
+      { new: true }
+    )
+
+    if (!pending) {
+      // Không tìm thấy doc hợp lệ: có thể đã hết hạn / đã consumed từ trước
+      // Thử kiểm tra: user đã được tạo chưa?
+      const maybe = await PendingRegistration.findOne({ token }) // xem còn doc không
+      const existedUser = await User.findOne({
+        $or: [{ phone: maybe?.phone }, { email: maybe?.email }]
+      })
+
+      if (existedUser) {
+        // ✅ Idempotent: coi là thành công
+        return res.status(200).json({ message: 'Tài khoản đã được tạo trước đó, bạn có thể đăng nhập.' })
+      }
+
+      return res.status(400).json({ message: 'Token không hợp lệ hoặc đã hết hạn' })
+    }
+
+    // Đến đây chắc chắn là lần đầu tiêu thụ token
+    const existed = await User.findOne({
+      $or: [{ phone: pending.phone }, { email: pending.email }]
+    })
+
+    if (existed) {
+      // Nếu vì lý do nào đó user đã tồn tại, coi là OK
+      await PendingRegistration.deleteOne({ _id: pending._id })
+      return res.status(200).json({ message: 'Tài khoản đã được tạo trước đó, bạn có thể đăng nhập.' })
+    }
+
+    const newUser = await User.create({
+      phone: pending.phone,
+      email: pending.email,
+      name: pending.name,
+      password: pending.passwordHash,
+      isActive: true,
+      role: 'student',
+      verified: true
+    })
+
+    await PendingRegistration.deleteOne({ _id: pending._id })
+
+    return res.status(200).json({ message: 'Tạo tài khoản thành công', userId: newUser._id })
+  } catch (err) {
+    return res.status(500).json({ message: 'Lỗi server', error: err.message })
+  }
+}
+
 
 const login = async (req, res) => {
   const { phone, password } = req.body
@@ -222,5 +327,7 @@ export const authController = {
   logout,
   forgotPassword,
   resetPassword,
-  loginWithGoogle
+  loginWithGoogle,
+  registerByPhoneStart,
+  registerByPhoneConfirm
 }

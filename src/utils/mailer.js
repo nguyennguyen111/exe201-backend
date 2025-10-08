@@ -77,7 +77,7 @@ export const sendResetPasswordEmail = async (to, name, link) => {
   })
 
   const mailOptions = {
-    from: `"Spa Pet" <${env.EMAIL_USER}>`,
+    from: `"F & Lower" <${env.EMAIL_USER}>`,
     to,
     subject: 'Yêu cầu đặt lại mật khẩu 🔐',
     html: `

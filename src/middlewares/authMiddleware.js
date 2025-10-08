@@ -53,16 +53,16 @@ const isAdmin = (req, res, next) => {
   next()
 }
 
-const isCustomer = (req, res, next) => {
-  if (req.user?.role !== 'customer') {
-    return res.status(StatusCodes.FORBIDDEN).json({ message: 'Customer access only' })
+const isStudent = (req, res, next) => {
+  if (req.user?.role !== 'student') {
+    return res.status(StatusCodes.FORBIDDEN).json({ message: 'Student access only' })
   }
   next()
 }
 
-const isDelivery = (req, res, next) => {
-  if (req.user?.role !== 'delivery') {
-    return res.status(StatusCodes.FORBIDDEN).json({ message: 'Delivery access only' })
+const isPT = (req, res, next) => {
+  if (req.user?.role !== 'pt') {
+    return res.status(StatusCodes.FORBIDDEN).json({ message: 'PT access only' })
   }
   next()
 }
@@ -70,6 +70,6 @@ const isDelivery = (req, res, next) => {
 export const authMiddleware = {
   authenTokenCookie,
   isAdmin,
-  isCustomer,
-  isDelivery
+  isStudent,
+  isPT
 }

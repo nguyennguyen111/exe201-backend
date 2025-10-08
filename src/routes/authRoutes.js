@@ -19,5 +19,7 @@ router.put('/change-password', authValidation.changePassword, authMiddleware.aut
 router.post('/forgot-password', authValidation.forgotPassword, authController.forgotPassword)
 router.post('/reset-password/:token', authValidation.resetPassword, authController.resetPassword)
 router.post('/google', authController.loginWithGoogle)
+router.post('/register/start', authController.registerByPhoneStart)
+router.get('/register/confirm', authController.registerByPhoneConfirm)
 
 export default router
