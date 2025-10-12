@@ -10,7 +10,8 @@ import authRoutes from '~/routes/authRoutes'
 import adminRoutes from './routes/adminRoutes'
 
 // pt
-import ptPackageRoutes from './routes/ptPackageRoutes' 
+import ptPackageRoutes from './routes/ptPackageRoutes'
+import ptProfileRoutes from './routes/ptProfileRoutes'
 
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
@@ -33,6 +34,7 @@ const START_SERVER = () => {
   app.use('/api/auth', authRoutes)
   app.use('/api/admin', adminRoutes )
   app.use('/api/pt', ptPackageRoutes )
+  app.use('/api/pt', ptProfileRoutes )
 
   app.use(errorHandlingMiddleware)
 
