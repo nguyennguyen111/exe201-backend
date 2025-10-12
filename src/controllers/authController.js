@@ -274,7 +274,7 @@ const forgotPassword = async (req, res) => {
     user.resetTokenExpires = expires
     await user.save()
 
-    const resetLink = `http://localhost:5173/reset-password/${token}`
+    const resetLink = `${env.CLIENT_URL}/reset-password/${token}`
     console.log(`Reset link: ${resetLink}`)
 
     await sendResetPasswordEmail(user.email, user.name || 'bạn', resetLink)
@@ -320,6 +320,8 @@ const resetPassword = async (req, res) => {
 
   return res.json({ message: 'Mật khẩu đã được cập nhật thành công!' })
 }
+
+// Test
 
 export const authController = {
   registerByPhone,
