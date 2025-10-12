@@ -13,5 +13,6 @@ export const env = {
   PAYOS_API_KEY: process.env.YOUR_API_KEY,
   PAYOS_CHECKSUM_KEY: process.env.YOUR_CHECKSUM_KEY,
   EMAIL_USER: process.env.EMAIL_USER,
-  EMAIL_PASS: process.env.EMAIL_PASS
+  EMAIL_PASS: process.env.EMAIL_PASS,
+  IS_SERCURE_COOKIE: process.env.IS_SERCURE_COOKIE === 'true'
 }
