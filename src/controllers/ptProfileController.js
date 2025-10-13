@@ -10,11 +10,11 @@ function sanitizePayload(body = {}) {
     'bio',
     'specialties',
     'yearsExperience',
-    'certificates',          // [{ name, issuer, year, url }]
+    'certificates', // [{ name, issuer, year, url }]
     'gymLocation',
-    'location',              // { address, coords:{ type:'Point', coordinates:[lng,lat] } }
+    'location', // { address, coords:{ type:'Point', coordinates:[lng,lat] } }
     'availableForNewClients',
-    'socials',               // { facebook, instagram, tiktok }
+    'socials', // { facebook, instagram, tiktok }
     'videoIntroUrl'
   ]
 
@@ -27,7 +27,7 @@ function sanitizePayload(body = {}) {
   if (payload.specialties) {
     payload.specialties = []
       .concat(payload.specialties)
-      .map(s => (typeof s === 'string' ? s.trim() : ''))
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
       .filter(Boolean)
   }
 
@@ -40,13 +40,13 @@ function sanitizePayload(body = {}) {
   if (payload.certificates) {
     payload.certificates = []
       .concat(payload.certificates)
-      .map(c => ({
+      .map((c) => ({
         name: c?.name?.trim() || '',
         issuer: c?.issuer?.trim() || '',
         year: typeof c?.year === 'number' ? c.year : undefined,
         url: c?.url?.trim() || ''
       }))
-      .filter(c => c.name) // bỏ chứng chỉ trống
+      .filter((c) => c.name) // bỏ chứng chỉ trống
   }
 
   // socials: chỉ giữ 3 field cho sạch
@@ -66,9 +66,10 @@ function sanitizePayload(body = {}) {
       address: loc?.address || '',
       coords: {
         type: 'Point',
-        coordinates: (Array.isArray(coords) && coords.length === 2)
-          ? [Number(coords[0]), Number(coords[1])]
-          : [0, 0]
+        coordinates:
+          Array.isArray(coords) && coords.length === 2
+            ? [Number(coords[0]), Number(coords[1])]
+            : [0, 0]
       }
     }
   }
@@ -95,13 +96,18 @@ const getMyProfile = async (req, res) => {
         availableForNewClients: true,
         socials: { facebook: '', instagram: '', tiktok: '' },
         videoIntroUrl: '',
-        location: { address: '', coords: { type: 'Point', coordinates: [0, 0] } }
+        location: {
+          address: '',
+          coords: { type: 'Point', coordinates: [0, 0] }
+        }
       })
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: profile })
   } catch (err) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: err.message })
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, message: err.message })
   }
 }
 
@@ -174,17 +180,104 @@ const deleteMyProfile = async (req, res) => {
         .status(StatusCodes.NOT_FOUND)
         .json({ success: false, message: 'Không tìm thấy hồ sơ để xoá' })
     }
-    return res.status(StatusCodes.OK).json({ success: true, message: 'Đã xoá hồ sơ PT' })
+    return res
+      .status(StatusCodes.OK)
+      .json({ success: true, message: 'Đã xoá hồ sơ PT' })
   } catch (error) {
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ success: false, message: 'Lỗi server', error: error.message })
   }
 }
+/* =========================================================
+   🆕 1️⃣ LẤY DANH SÁCH TẤT CẢ PT (PUBLIC)
+   GET /api/pt/public/list
+========================================================= */
+const getAllPTProfilesPublic = async (req, res) => {
+  try {
+    const { keyword, specialty, available } = req.query
+    const filter = {}
 
+    // lọc theo chuyên môn nếu có
+    if (specialty) {
+      filter.specialties = { $regex: specialty, $options: 'i' }
+    }
+
+    // chỉ lấy PT đang mở nhận học viên mới
+    if (available === 'true') {
+      filter.availableForNewClients = true
+    }
+
+    // lấy danh sách PT
+    const profiles = await PTProfile.find(filter)
+      .populate('user', 'name email avatar phone role')
+      .select(
+        'coverImage bio specialties yearsExperience gymLocation ratingAvg location availableForNewClients socials videoIntroUrl'
+      )
+      .lean()
+
+    // chỉ giữ user có role là 'pt' và có keyword (nếu có)
+    const list = profiles.filter(
+      (p) =>
+        p.user &&
+        p.user.role === 'pt' &&
+        (!keyword ||
+          p.user.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          (p.bio && p.bio.toLowerCase().includes(keyword.toLowerCase())))
+    )
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      total: list.length,
+      data: list
+    })
+  } catch (error) {
+    console.error('getAllPTProfilesPublic error:', error)
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Lỗi khi lấy danh sách PT',
+      error: error.message
+    })
+  }
+}
+
+/* =========================================================
+   🆕 2️⃣ LẤY CHI TIẾT PT CỤ THỂ (PUBLIC)
+   GET /api/pt/public/:id
+========================================================= */
+const getPTDetailPublic = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const profile = await PTProfile.findOne({ user: id })
+      .populate('user', 'name email avatar phone role')
+      .select('-__v -updatedAt -createdAt')
+      .lean()
+
+    if (!profile || profile.user.role !== 'pt') {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: 'Không tìm thấy PT' })
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: profile
+    })
+  } catch (error) {
+    console.error('getPTDetailPublic error:', error)
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Lỗi server khi lấy chi tiết PT',
+      error: error.message
+    })
+  }
+}
 export const ptProfileController = {
   getMyProfile,
   upsertMyProfile,
   getPTProfilePublic,
-  deleteMyProfile
+  deleteMyProfile,
+  getAllPTProfilesPublic,
+  getPTDetailPublic
 }

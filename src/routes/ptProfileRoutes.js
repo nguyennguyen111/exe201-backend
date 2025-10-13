@@ -23,7 +23,8 @@ router.delete(
   authMiddleware.isPT,
   ptProfileController.deleteMyProfile
 )
-
+router.get('/public/list', ptProfileController.getAllPTProfilesPublic)
+router.get('/public/:id', ptProfileController.getPTDetailPublic)
 // Public: xem hồ sơ 1 PT
 router.get('/:ptId/profile', ptProfileController.getPTProfilePublic)
 
