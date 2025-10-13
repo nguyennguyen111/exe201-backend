@@ -117,7 +117,7 @@ export const registerByPhoneStart = async (req, res) => {
     await PendingRegistration.deleteMany({ $or: [{ phone }, { email }] })
     await PendingRegistration.create({ token, phone, email, name, passwordHash, expireAt })
 
-    const verifyUrl = `${env.CLIENT_URL}verify-email?token=${token}`
+    const verifyUrl = `${env.CLIENT_URL}/verify-email?token=${token}`
 
     const transporter = nodemailer.createTransport({
       service: 'Gmail',
