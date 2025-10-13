@@ -2,6 +2,7 @@
 import { StatusCodes } from 'http-status-codes'
 import PTProfile from '~/models/PTProfile'
 import User from '~/models/User'
+import cloudinary from '~/config/cloudinary'
 
 // helper: sanitize payload theo schema
 function sanitizePayload(body = {}) {
@@ -74,6 +75,22 @@ function sanitizePayload(body = {}) {
   }
 
   return payload
+}
+
+// GET /api/pt/account/me  → trả thông tin account đầy đủ cho PT
+const getMyAccount = async (req, res) => {
+  try {
+    const userId = req.user._id
+    const user = await User.findById(userId)
+      .select('name avatar gender dob address email phone role verified')
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' })
+    }
+    return res.status(200).json({ success: true, data: user })
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message })
+  }
 }
 
 /// GET /api/pt/profile/me
@@ -182,9 +199,35 @@ const deleteMyProfile = async (req, res) => {
   }
 }
 
+const uploadCoverImage = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' })
+
+    cloudinary.uploader.upload_stream(
+      { resource_type: 'image', folder: 'fitlink/pt-covers' },
+      async (error, result) => {
+        if (error) return res.status(500).json({ error })
+
+        // cập nhật link vào PTProfile
+        await PTProfile.updateOne(
+          { user: req.user._id },
+          { $set: { coverImage: result.secure_url } },
+          { upsert: true }
+        )
+
+        res.json({ success: true, url: result.secure_url })
+      }
+    ).end(req.file.buffer)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
 export const ptProfileController = {
   getMyProfile,
   upsertMyProfile,
   getPTProfilePublic,
-  deleteMyProfile
+  deleteMyProfile,
+  uploadCoverImage,
+  getMyAccount
 }
