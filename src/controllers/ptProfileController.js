@@ -206,14 +206,7 @@ const deleteMyProfile = async (req, res) => {
       .json({ success: false, message: 'Lỗi server', error: error.message })
   }
 }
-/* =========================================================
-   🆕 1️⃣ LẤY DANH SÁCH TẤT CẢ PT (PUBLIC)
-   GET /api/pt/public/list
-========================================================= */
-const getAllPTProfilesPublic = async (req, res) => {
-  try {
-    const { keyword, specialty, available } = req.query
-    const filter = {}
+
 
 const uploadCoverImage = async (req, res) => {
   try {
@@ -238,6 +231,14 @@ const uploadCoverImage = async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 }
+/* =========================================================
+   🆕 1️⃣ LẤY DANH SÁCH TẤT CẢ PT (PUBLIC)
+   GET /api/pt/public/list
+========================================================= */
+const getAllPTProfilesPublic = async (req, res) => {
+  try {
+    const { keyword, specialty, available } = req.query
+    const filter = {}
 
     // lọc theo chuyên môn nếu có
     if (specialty) {
