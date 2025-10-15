@@ -56,5 +56,6 @@ const studentPackageSchema = new mongoose.Schema({
 studentPackageSchema.index({ pt: 1, status: 1 })
 studentPackageSchema.index({ student: 1, status: 1 })
 studentPackageSchema.index({ endDate: 1 })
+studentPackageSchema.index({ transaction: 1 }, { unique: true })
 
 export default mongoose.model('StudentPackage', studentPackageSchema)

@@ -1,4 +1,3 @@
-// models/Session.js
 import mongoose from 'mongoose'
 
 const sessionSchema = new mongoose.Schema({
@@ -17,6 +16,12 @@ const sessionSchema = new mongoose.Schema({
     ref: 'User', 
     required: true 
   },
+
+  title: { 
+    type: String, 
+    default: 'Buổi tập' 
+  },
+
   startTime: { 
     type: Date, 
     required: true 
@@ -31,17 +36,18 @@ const sessionSchema = new mongoose.Schema({
     enum: ['scheduled', 'completed', 'missed', 'rescheduled', 'cancelled'], 
     default: 'scheduled' 
   },
+
   attendance: { 
     type: String, 
     enum: ['present', 'absent', 'pending'], 
     default: 'pending' 
   },
 
-  ptNote: String,
-  studentNote: String
+  ptNote: { type: String, default: '' },
+  studentNote: { type: String, default: '' }
 }, { timestamps: true })
 
-// ✅ INDEXES
+// ✅ INDEXES để tối ưu query
 sessionSchema.index({ pt: 1, startTime: 1 })
 sessionSchema.index({ student: 1, startTime: 1 })
 sessionSchema.index({ studentPackage: 1, status: 1 })
