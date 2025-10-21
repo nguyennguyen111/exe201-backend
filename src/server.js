@@ -13,12 +13,11 @@ import adminRoutes from './routes/adminRoutes'
 import ptPackageRoutes from './routes/ptPackageRoutes'
 import ptProfileRoutes from './routes/ptProfileRoutes'
 
-import sessionRoutes from './routes/sessionRoutes'
 import ptStudentRoutes from './routes/ptStudentRoutes'
 import ptWalletRoues from './routes/ptWalletRoutes'
 
 // student
-import studentCheckoutRoutes from './routes/studentCheckoutRoutes'
+
 
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
@@ -37,13 +36,16 @@ const START_SERVER = () => {
   }))
   app.use(cookieParser())
 
+  app.use((req, res, next) => {
+  if (req.path.startsWith('/socket.io')) return; // skip morgan
+  next();
+});
+
   // user router
   app.use('/api/auth', authRoutes)
   app.use('/api/admin', adminRoutes )
   app.use('/api/pt', ptPackageRoutes )
   app.use('/api/pt', ptProfileRoutes )
-  app.use('/api/student', studentCheckoutRoutes)
-  app.use('/api/sessions', sessionRoutes)
   app.use('/api/pt', ptStudentRoutes)
   app.use('/api/pt', ptWalletRoues)
 
