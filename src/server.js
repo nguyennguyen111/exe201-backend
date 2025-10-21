@@ -15,6 +15,7 @@ import ptProfileRoutes from './routes/ptProfileRoutes'
 
 import sessionRoutes from './routes/sessionRoutes'
 import ptStudentRoutes from './routes/ptStudentRoutes'
+import ptWalletRoues from './routes/ptWalletRoutes'
 
 // student
 import studentCheckoutRoutes from './routes/studentCheckoutRoutes'
@@ -44,6 +45,7 @@ const START_SERVER = () => {
   app.use('/api/student', studentCheckoutRoutes)
   app.use('/api/sessions', sessionRoutes)
   app.use('/api/pt', ptStudentRoutes)
+  app.use('/api/pt', ptWalletRoues)
 
   app.use(errorHandlingMiddleware)
 
