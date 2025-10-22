@@ -23,7 +23,9 @@ const PTProfileSchema = new Schema(
     primaryGym: {
       name: { type: String, default: '' },
       address: { type: String, default: '' },
-      location: { type: GeoPointSchema } // GeoJSON Point [lng, lat]
+      location: { type: GeoPointSchema }, // GeoJSON Point [lng, lat]
+      // Ảnh chứng minh phòng/gym thật — mảng URL (cho phép nhiều góc chụp)
+      photos: { type: [String], default: [] }
     },
 
     // === MỚI: kênh nhận dạy (PT chọn 1-3 cái) ===

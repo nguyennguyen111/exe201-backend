@@ -9,6 +9,29 @@ import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
 import { env } from '~/config/environment'
 import PendingRegistration from '~/models/PendingRegistration'
+// controllers/authController.js (bổ sung)
+import PTProfile from '~/models/PTProfile'
+import PTWallet from '~/models/PTWallet'
+import { Roles } from '~/domain/enums' // dùng đúng enum với userSchema:contentReference[oaicite:7]{index=7}
+
+const createPTArtifacts = async (user) => {
+  // Tạo PTProfile rỗng (verified=false). Geo location để trống - PT điền sau.
+  const existedProfile = await PTProfile.findOne({ user: user._id })
+  if (!existedProfile) {
+    await PTProfile.create({
+      user: user._id,
+      deliveryModes: { atPtGym: true, atClient: false, atOtherGym: false },
+      availableForNewClients: false,
+      verified: false
+    })
+  }
+
+  // Tạo ví PT nếu chưa có
+  const existedWallet = await PTWallet.findOne({ pt: user._id })
+  if (!existedWallet) {
+    await PTWallet.create({ pt: user._id, available: 0, pending: 0, totalEarned: 0, withdrawn: 0 })
+  }
+}
 
 const client = new OAuth2Client(env.GG_CLIENT_ID)
 
@@ -41,7 +64,7 @@ const loginWithGoogle = async (req, res) => {
         phone: '', // Google không trả phone
         password: '', // không cần password
         isActive: true,
-        role: 'student',
+        role: Roles.STUDENT,
         googleId: sub
       })
       await user.save()
@@ -188,8 +211,7 @@ export const registerByPhoneConfirm = async (req, res) => {
       name: pending.name,
       password: pending.passwordHash,
       isActive: true,
-      role: 'student',
-      verified: true
+      role: Roles.STUDENT
     })
 
     await PendingRegistration.deleteOne({ _id: pending._id })
@@ -257,7 +279,7 @@ const forgotPassword = async (req, res) => {
   const { phone } = req.body
 
   try {
-    const user = await User.findOne({ phone, role: 'customer' })
+    const user = await User.findOne({ phone })
 
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' })

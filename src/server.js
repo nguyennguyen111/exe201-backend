@@ -17,8 +17,6 @@ import ptStudentRoutes from './routes/ptStudentRoutes'
 import ptWalletRoues from './routes/ptWalletRoutes'
 
 // student
-
-
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 const morgan = require('morgan')
