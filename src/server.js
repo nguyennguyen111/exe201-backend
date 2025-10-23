@@ -5,7 +5,7 @@ import { connectDB } from "~/config/database";
 
 // router
 import authRoutes from "~/routes/authRoutes";
-
+import studentRoutes from "./routes/studentRoutes.js";
 // admin
 import adminRoutes from "./routes/adminRoutes";
 
@@ -54,7 +54,7 @@ const START_SERVER = () => {
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/pt", ptApprovalRoutes);
   app.use("/api/pt", ptRoutes);
-
+  app.use("/api/students", studentRoutes);
   app.use(errorHandlingMiddleware);
 
   const server = http.createServer(app);
