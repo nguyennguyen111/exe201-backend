@@ -13,6 +13,7 @@ import PendingRegistration from '~/models/PendingRegistration'
 import PTProfile from '~/models/PTProfile'
 import PTWallet from '~/models/PTWallet'
 import { Roles } from '~/domain/enums' // dùng đúng enum với userSchema:contentReference[oaicite:7]{index=7}
+import { log } from 'console'
 
 const createPTArtifacts = async (user) => {
   // Tạo PTProfile rỗng (verified=false). Geo location để trống - PT điền sau.
@@ -123,87 +124,91 @@ const registerByPhone = async (req, res) => {
 
 export const registerByPhoneStart = async (req, res) => {
   try {
-    const { phone, password, name, email } = req.body
+    const { phone, password, name, email, role } = req.body;
+
     if (!phone || !password || !name || !email) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: 'Thiếu dữ liệu' })
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: 'Missing fields' });
     }
 
-    const existed = await User.findOne({ $or: [{ phone }, { email }] })
+    // normalize + validate role
+    const normalizedRole = String(role || '').toLowerCase();
+    const allowedRoles = [Roles.STUDENT, Roles.PT].map(r => String(r).toLowerCase());
+    const finalRole = allowedRoles.includes(normalizedRole) ? normalizedRole : String(Roles.STUDENT).toLowerCase();
+
+    // ❌ disallow reuse of phone/email (no upgrade Student -> PT)
+    const existed = await User.findOne({ $or: [{ phone }, { email }] });
     if (existed) {
-      return res.status(StatusCodes.CONFLICT).json({ message: 'SĐT hoặc email đã tồn tại' })
+      return res.status(StatusCodes.CONFLICT).json({ message: 'Phone or email already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
-    const token = crypto.randomBytes(32).toString('hex')
-    const expireAt = new Date(Date.now() + 3 * 60 * 1000)
+    const passwordHash = await bcrypt.hash(password, 10);
+    const token = crypto.randomBytes(32).toString('hex');
+    const expireAt = new Date(Date.now() + 3 * 60 * 1000);
 
-    await PendingRegistration.deleteMany({ $or: [{ phone }, { email }] })
-    await PendingRegistration.create({ token, phone, email, name, passwordHash, expireAt })
+    await PendingRegistration.deleteMany({ $or: [{ phone }, { email }] });
+    await PendingRegistration.create({
+      token, phone, email, name, passwordHash, expireAt, role: finalRole
+    });
 
-    const verifyUrl = `${env.CLIENT_URL}/verify-email?token=${token}`
+    const verifyUrl = `${env.CLIENT_URL}/verify-email?token=${token}`;
 
     const transporter = nodemailer.createTransport({
       service: 'Gmail',
       auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS }
-    })
+    });
 
     await transporter.sendMail({
       from: env.EMAIL_FROM || env.EMAIL_USER,
       to: email,
-      subject: 'Xác nhận đăng ký tài khoản',
+      subject: `Verify your ${finalRole.toUpperCase()} account`,
       html: `
-        <p>Chào ${name},</p>
-        <p>Bạn có 3 phút để xác nhận đăng ký. Nhấn vào link sau để hoàn tất:</p>
+        <p>Hello ${name},</p>
+        <p>You have 3 minutes to confirm your ${finalRole.toUpperCase()} registration.</p>
         <p><a href="${verifyUrl}">${verifyUrl}</a></p>
       `
-    })
+    });
 
-    return res.status(StatusCodes.CREATED).json({ message: 'Đã gửi email xác nhận' })
+    return res.status(StatusCodes.CREATED).json({ message: 'Verification email sent' });
   } catch (err) {
-    return res.status(500).json({ message: 'Lỗi server', error: err.message })
+    return res.status(500).json({ message: 'Server error', error: err.message });
   }
-}
+};
+
 
 // B2: click link xác nhận → tạo User thật
 // controllers/authController.js
 export const registerByPhoneConfirm = async (req, res) => {
   try {
-    const { token } = req.query
-    if (!token) return res.status(400).json({ message: 'Thiếu token' })
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ message: 'Missing token' });
 
-    // ✅ ATOMIC: chỉ request đầu tiên mới cập nhật được consumed:true
     const pending = await PendingRegistration.findOneAndUpdate(
       { token, expireAt: { $gt: new Date() }, consumed: false },
       { $set: { consumed: true } },
       { new: true }
-    )
+    );
 
     if (!pending) {
-      // Không tìm thấy doc hợp lệ: có thể đã hết hạn / đã consumed từ trước
-      // Thử kiểm tra: user đã được tạo chưa?
-      const maybe = await PendingRegistration.findOne({ token }) // xem còn doc không
+      const maybe = await PendingRegistration.findOne({ token });
       const existedUser = await User.findOne({
         $or: [{ phone: maybe?.phone }, { email: maybe?.email }]
-      })
-
+      });
       if (existedUser) {
-        // ✅ Idempotent: coi là thành công
-        return res.status(200).json({ message: 'Tài khoản đã được tạo trước đó, bạn có thể đăng nhập.' })
+        return res.status(200).json({ message: 'Account already created. You can sign in.' });
       }
-
-      return res.status(400).json({ message: 'Token không hợp lệ hoặc đã hết hạn' })
+      return res.status(400).json({ message: 'Invalid or expired token' });
     }
 
-    // Đến đây chắc chắn là lần đầu tiêu thụ token
     const existed = await User.findOne({
       $or: [{ phone: pending.phone }, { email: pending.email }]
-    })
-
+    });
     if (existed) {
-      // Nếu vì lý do nào đó user đã tồn tại, coi là OK
-      await PendingRegistration.deleteOne({ _id: pending._id })
-      return res.status(200).json({ message: 'Tài khoản đã được tạo trước đó, bạn có thể đăng nhập.' })
+      await PendingRegistration.deleteOne({ _id: pending._id });
+      return res.status(200).json({ message: 'Account already created. You can sign in.' });
     }
+
+    // role from pending (default to student if somehow missing)
+    const roleFromPending = (pending.role || Roles.STUDENT).toString().toLowerCase();
 
     const newUser = await User.create({
       phone: pending.phone,
@@ -211,16 +216,21 @@ export const registerByPhoneConfirm = async (req, res) => {
       name: pending.name,
       password: pending.passwordHash,
       isActive: true,
-      role: Roles.STUDENT
-    })
+      role: roleFromPending // 👈 create with selected role
+    });
 
-    await PendingRegistration.deleteOne({ _id: pending._id })
+    // If PT, bootstrap profile & wallet
+    if (roleFromPending === String(Roles.PT).toLowerCase()) {
+      await createPTArtifacts(newUser);
+    }
 
-    return res.status(200).json({ message: 'Tạo tài khoản thành công', userId: newUser._id })
+    await PendingRegistration.deleteOne({ _id: pending._id });
+    return res.status(200).json({ message: 'Account created', userId: newUser._id, role: roleFromPending });
   } catch (err) {
-    return res.status(500).json({ message: 'Lỗi server', error: err.message })
+    return res.status(500).json({ message: 'Server error', error: err.message });
   }
-}
+};
+
 
 
 const login = async (req, res) => {
