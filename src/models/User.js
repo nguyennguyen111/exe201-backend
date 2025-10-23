@@ -29,7 +29,7 @@ const userSchema = new Schema(
 
     password: {
       type: String,
-      select: false // không trả ra mặc định; nhớ hash ở pre('save')
+      // select: false // không trả ra mặc định; nhớ hash ở pre('save')
       // không required để hỗ trợ đăng nhập Google
     },
 

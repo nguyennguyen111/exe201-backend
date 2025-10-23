@@ -12,6 +12,7 @@ import adminRoutes from './routes/adminRoutes'
 // pt
 import ptPackageRoutes from './routes/ptPackageRoutes'
 import ptProfileRoutes from './routes/ptProfileRoutes'
+import ptRoutes from './routes/ptRoutes'
 
 import ptStudentRoutes from './routes/ptStudentRoutes'
 import ptWalletRoues from './routes/ptWalletRoutes'
@@ -46,6 +47,7 @@ const START_SERVER = () => {
   app.use('/api/pt', ptProfileRoutes )
   app.use('/api/pt', ptStudentRoutes)
   app.use('/api/pt', ptWalletRoues)
+  app.use('/api/pt', ptRoutes )
 
   app.use(errorHandlingMiddleware)
 
