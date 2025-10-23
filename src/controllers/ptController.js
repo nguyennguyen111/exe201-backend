@@ -1,6 +1,29 @@
 import StudentPackage from '../models/StudentPackage.js';
 import Package from '../models/Package.js';
 import User from '../models/User.js';
+import PTProfile from '~/models/PTProfile.js'
+import { StatusCodes } from 'http-status-codes'
+
+
+// ---- Endpoint ----
+// GET /api/pt/me/verification-status
+export const isPTVerified = async (req, res) => {
+  try {
+    const ptId = req.user._id
+
+    const profile = await PTProfile.findOne({ user: ptId }).select('verified').lean()
+
+    // Nếu chưa có hồ sơ -> coi như chưa verified
+    const verified = !!profile?.verified
+
+    return res.status(StatusCodes.OK).json({ verified })
+  } catch (err) {
+    console.error('isPTVerified error:', err)
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: 'Server error' })
+  }
+}
 
 // 🧠 Lấy tất cả học viên của PT (dựa trên gói)
 export const getMyStudents = async (req, res) => {
@@ -67,4 +90,12 @@ export const updateStudentPackage = async (req, res) => {
   await pkg.save();
 
   res.json(pkg);
+};
+
+export const ptController = {
+  isPTVerified,
+  getMyStudents,
+  getMyPackages,
+  createStudentPackage,
+  updateStudentPackage
 };

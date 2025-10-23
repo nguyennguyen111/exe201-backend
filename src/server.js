@@ -13,8 +13,10 @@ import adminRoutes from "./routes/adminRoutes";
 import ptPackageRoutes from "./routes/ptPackageRoutes";
 import ptProfileRoutes from "./routes/ptProfileRoutes";
 import ptStudentRoutes from "./routes/ptStudentRoutes";
-import ptWalletRoues from "./routes/ptWalletRoutes";
 import ptApprovalRoutes from "./routes/ptApprovalRoutes.js";
+import ptRoutes from "./routes/ptRoutes";
+import ptWalletRoues from "./routes/ptWalletRoutes";
+
 // student
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -51,6 +53,8 @@ const START_SERVER = () => {
   app.use("/api/pt", ptWalletRoues);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/pt", ptApprovalRoutes);
+  app.use("/api/pt", ptRoutes);
+
   app.use(errorHandlingMiddleware);
 
   const server = http.createServer(app);
