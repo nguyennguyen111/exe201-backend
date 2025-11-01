@@ -49,7 +49,10 @@ const slotSchema = new Schema(
     hold: { type: slotHoldSchema, default: () => ({}) },
 
     // Liên kết khi slot đã được book xong
-    bookedByBooking: { type: Schema.Types.ObjectId, ref: 'Booking', default: null, index: true }
+    bookedByBooking: { type: Schema.Types.ObjectId, ref: 'Booking', default: null, index: true },
+
+    /** ⬇️ NEW: TTL anchor */
+    expiresAt: { type: Date, default: null }
   },
   { timestamps: true }
 )
@@ -68,5 +71,8 @@ slotSchema.index({ pt: 1, startTime: 1 }, { unique: true })
 
 // Lọc nhanh cho listing
 slotSchema.index({ pt: 1, status: 1, startTime: 1 })
+
+/** ⬇️ NEW: TTL index — Mongo sẽ xoá doc khi now >= expiresAt */
+slotSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 
 export default model('Slot', slotSchema)

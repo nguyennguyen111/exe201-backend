@@ -16,6 +16,7 @@ import ptStudentRoutes from "./routes/ptStudentRoutes";
 import ptApprovalRoutes from "./routes/ptApprovalRoutes.js";
 import ptRoutes from "./routes/ptRoutes";
 import ptWalletRoues from "./routes/ptWalletRoutes";
+import scheduleRoutes from "~/routes/scheduleRoutes.js";
 
 // student
 import cookieParser from "cookie-parser";
@@ -54,6 +55,7 @@ const START_SERVER = () => {
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/pt", ptApprovalRoutes);
   app.use("/api/pt", ptRoutes);
+  app.use("/api/pt", scheduleRoutes);
   app.use("/api/students", studentRoutes);
   app.use(errorHandlingMiddleware);
 
