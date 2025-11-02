@@ -3,197 +3,287 @@ import { StatusCodes } from 'http-status-codes'
 import Package from '~/models/Package'
 import StudentPackage from '~/models/StudentPackage'
 
-// PT tạo gói mới (route nên gắn authMiddleware.authenTokenCookie + isPT)
+// Mon-first ordering: 1..6..0(CN)
+const MON_FIRST = [1, 2, 3, 4, 5, 6, 0];
+
+// helper: normalize patterns [[...], ...] -> chuẩn 0..6 và sắp theo Mon-first
+function normalizePatterns(input) {
+  let patterns = input;
+  if (Array.isArray(patterns) && patterns.length && typeof patterns[0] === 'number') {
+    // [1,3,5] -> [[1,3,5]]
+    patterns = [patterns];
+  }
+  if (!Array.isArray(patterns)) return [];
+
+  return patterns
+    .map((p) => {
+      const cleaned = Array.from(
+        new Set((Array.isArray(p) ? p : [])
+          .map(Number)
+          .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))
+      );
+      // sort Mon-first: 1..6..0
+      cleaned.sort((a, b) => MON_FIRST.indexOf(a) - MON_FIRST.indexOf(b));
+      return cleaned;
+    })
+    .filter((p) => p.length > 0);
+}
+
+// PT tạo gói mới
 const createPackage = async (req, res) => {
   try {
-    const { name, description, price, totalSessions, durationDays, visibility, tags } = req.body
-
-    if (!name || !totalSessions || !durationDays) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: 'Vui lòng nhập đầy đủ: tên gói, số buổi, thời hạn'
-      })
-    }
-
-    const pkg = await Package.create({
-      pt: req.user?._id,
+    const {
       name,
       description,
-      price: price ?? 0,            // model đã round & validate min/max
+      price,
       totalSessions,
+      sessionDurationMin,   // bắt buộc
       durationDays,
+      visibility,
+      tags,
+      supports,
+      travelPricing,
+      recurrence // { daysOfWeek: [[...], ...] } hoặc daysOfWeek: [1,3,5]
+    } = req.body;
+
+    if (!name || !totalSessions || !sessionDurationMin || !durationDays) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ: tên gói, số buổi, thời lượng mỗi buổi (phút), thời hạn (ngày)'
+      });
+    }
+
+    let daysPatterns = [];
+    if (recurrence?.daysOfWeek) {
+      daysPatterns = normalizePatterns(recurrence.daysOfWeek);
+    }
+
+    const payload = {
+      pt: req.user?._id,
+      name: String(name).trim(),
+      description: description ?? '',
+      price: Math.max(0, Math.round(price ?? 0)),
+      totalSessions: Number(totalSessions),
+      sessionDurationMin: Number(sessionDurationMin),
+      durationDays: Number(durationDays),
+      isActive: typeof req.body.isActive === 'boolean' ? req.body.isActive : true,
       visibility: visibility || 'private',
-      tags: tags || []
-    })
+      tags: Array.isArray(tags) ? tags : []
+    };
+
+    // optional
+    if (supports && typeof supports === 'object') payload.supports = supports;
+    if (travelPricing && typeof travelPricing === 'object') payload.travelPricing = travelPricing;
+    if (daysPatterns.length) payload.recurrence = { daysOfWeek: daysPatterns };
+
+    const pkg = await Package.create(payload);
 
     return res.status(StatusCodes.CREATED).json({
       success: true,
       message: 'Tạo gói tập thành công',
       data: pkg
-    })
+    });
   } catch (error) {
     if (error?.code === 11000) {
       return res.status(StatusCodes.CONFLICT).json({
         success: false,
         message: 'Tên gói đã tồn tại trong tài khoản PT'
-      })
+      });
     }
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Lỗi server',
       error: error.message
-    })
+    });
   }
-}
+};
 
-// PT xem danh sách gói của mình (có phân trang)
+// PT xem danh sách gói của mình
 const getMyPackages = async (req, res) => {
   try {
-    const { isActive, page = '1', limit = '10' } = req.query
-    const _page = Math.max(1, parseInt(page, 10) || 1)
-    const _limit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10))
+    const { isActive, page = '1', limit = '10' } = req.query;
+    const _page = Math.max(1, parseInt(page, 10) || 1);
+    const _limit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
 
-    const filter = { pt: req.user?._id }
-    if (typeof isActive !== 'undefined') filter.isActive = isActive === 'true'
+    const filter = { pt: req.user?._id };
+    if (typeof isActive !== 'undefined') filter.isActive = isActive === 'true';
 
     const [items, total] = await Promise.all([
       Package.find(filter).sort({ createdAt: -1 }).limit(_limit).skip((_page - 1) * _limit),
       Package.countDocuments(filter)
-    ])
+    ]);
 
     return res.status(StatusCodes.OK).json({
       success: true,
       data: items,
       pagination: { total, page: _page, pages: Math.ceil(total / _limit) }
-    })
+    });
   } catch (error) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Lỗi server',
       error: error.message
-    })
+    });
   }
-}
+};
 
-// Public: Student xem danh sách gói của 1 PT (chỉ show gói đang active; tùy bạn bổ sung visibility='public')
+// Public: Student xem danh sách gói của 1 PT
 const getPackagesByPTPublic = async (req, res) => {
   try {
-    const { ptId } = req.params
-    const items = await Package.find({ pt: ptId, isActive: true }).sort({ createdAt: -1 })
-    return res.status(StatusCodes.OK).json({ success: true, data: items })
+    const { ptId } = req.params;
+    const items = await Package.find({ pt: ptId, isActive: true }).sort({ createdAt: -1 });
+    return res.status(StatusCodes.OK).json({ success: true, data: items });
   } catch (error) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Lỗi server',
       error: error.message
-    })
+    });
   }
-}
+};
 
-// Xem chi tiết một gói (PT chủ gói hoặc gói public mới xem được)
+// Xem chi tiết một gói
 const getPackageById = async (req, res) => {
   try {
-    const pkg = await Package.findById(req.params.id).populate('pt', 'name avatar')
+    const pkg = await Package.findById(req.params.id).populate('pt', 'name avatar');
     if (!pkg) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' })
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' });
     }
 
-    const isOwner = req.user && String(pkg.pt._id) === String(req.user._id)
-    const isPublic = pkg.visibility === 'public'
+    const isOwner = req.user && String(pkg.pt._id) === String(req.user._id);
+    const isPublic = pkg.visibility === 'public';
     if (!isOwner && !isPublic) {
-      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền xem gói này' })
+      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền xem gói này' });
     }
 
-    return res.status(StatusCodes.OK).json({ success: true, data: pkg })
+    return res.status(StatusCodes.OK).json({ success: true, data: pkg });
   } catch (error) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Lỗi server',
       error: error.message
-    })
+    });
   }
-}
+};
 
 // PT cập nhật gói của mình
 const updatePackage = async (req, res) => {
   try {
-    const pkg = await Package.findById(req.params.id)
+    const pkg = await Package.findById(req.params.id);
     if (!pkg) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' })
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' });
     }
     if (String(pkg.pt) !== String(req.user._id)) {
-      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền sửa gói này' })
+      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền sửa gói này' });
     }
 
-    const allowedFields = ['name', 'description', 'price', 'totalSessions', 'durationDays', 'isActive', 'visibility', 'tags']
-    for (const f of allowedFields) if (typeof req.body[f] !== 'undefined') pkg[f] = req.body[f]
-    await pkg.save()
+    const allowedFields = [
+      'name',
+      'description',
+      'price',
+      'totalSessions',
+      'sessionDurationMin',
+      'durationDays',
+      'isActive',
+      'visibility',
+      'tags',
+      'supports',
+      'travelPricing'
+    ];
 
-    return res.status(StatusCodes.OK).json({ success: true, message: 'Cập nhật gói thành công', data: pkg })
+    for (const f of allowedFields) {
+      if (typeof req.body[f] !== 'undefined') pkg[f] = req.body[f];
+    }
+
+    // recurrence (patterns) nếu có gửi lên
+    if (req.body?.recurrence?.daysOfWeek) {
+      const patterns = normalizePatterns(req.body.recurrence.daysOfWeek);
+      pkg.recurrence = patterns.length ? { daysOfWeek: patterns } : { daysOfWeek: [] };
+    }
+
+    await pkg.save();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Cập nhật gói thành công',
+      data: pkg
+    });
   } catch (error) {
     if (error?.code === 11000) {
-      return res.status(StatusCodes.CONFLICT).json({ success: false, message: 'Tên gói đã tồn tại trong tài khoản PT' })
+      return res.status(StatusCodes.CONFLICT).json({ success: false, message: 'Tên gói đã tồn tại trong tài khoản PT' });
     }
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Lỗi server', error: error.message })
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Lỗi server',
+      error: error.message
+    });
   }
-}
+};
 
-// PT ẩn gói (soft delete = set isActive=false) – chặn nếu đang có học viên active dùng gói
+// Ẩn gói
 const deletePackage = async (req, res) => {
   try {
-    const pkg = await Package.findById(req.params.id)
+    const pkg = await Package.findById(req.params.id);
     if (!pkg) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' })
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' });
     }
     if (String(pkg.pt) !== String(req.user._id)) {
-      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền ẩn gói này' })
+      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền ẩn gói này' });
     }
 
-    const activeCount = await StudentPackage.countDocuments({ package: pkg._id, status: 'active' })
+    const activeCount = await StudentPackage.countDocuments({ package: pkg._id, status: 'active' });
     if (activeCount > 0) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: `Không thể ẩn gói này vì đang có ${activeCount} học viên sử dụng`
-      })
+      });
     }
 
-    pkg.isActive = false
-    await pkg.save()
-    return res.status(StatusCodes.OK).json({ success: true, message: 'Đã ẩn gói tập thành công' })
+    pkg.isActive = false;
+    await pkg.save();
+    return res.status(StatusCodes.OK).json({ success: true, message: 'Đã ẩn gói tập thành công' });
   } catch (error) {
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Lỗi server', error: error.message })
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Lỗi server',
+      error: error.message
+    });
   }
-}
+};
 
-// PT xoá hẳn gói (hard delete) – chỉ khi chưa từng được dùng
+// Xoá hẳn gói
 const hardDeletePackage = async (req, res) => {
   try {
-    const pkg = await Package.findById(req.params.id)
+    const pkg = await Package.findById(req.params.id);
     if (!pkg) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' })
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' });
     }
     if (String(pkg.pt) !== String(req.user._id)) {
-      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền xoá gói này' })
+      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền xoá gói này' });
     }
 
-    const usedCount = await StudentPackage.countDocuments({ package: pkg._id })
+    const usedCount = await StudentPackage.countDocuments({ package: pkg._id });
     if (usedCount > 0) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Không thể xoá gói đã có học viên sử dụng' })
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Không thể xoá gói đã có học viên sử dụng' });
     }
 
-    await pkg.deleteOne()
-    return res.status(StatusCodes.OK).json({ success: true, message: 'Đã xoá gói tập vĩnh viễn' })
+    await pkg.deleteOne();
+    return res.status(StatusCodes.OK).json({ success: true, message: 'Đã xoá gói tập vĩnh viễn' });
   } catch (error) {
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Lỗi server', error: error.message })
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Lỗi server',
+      error: error.message
+    });
   }
-}
+};
 
 export const packageController = {
   createPackage,
   getMyPackages,
-  getPackagesByPTPublic, // cho Student duyệt & mua
+  getPackagesByPTPublic,
   getPackageById,
   updatePackage,
   deletePackage,
   hardDeletePackage
-}
+};

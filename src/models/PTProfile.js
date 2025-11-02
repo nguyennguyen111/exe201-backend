@@ -4,10 +4,10 @@ const { Schema, model } = mongoose
 
 const TravelPolicySchema = new Schema(
   {
-    enabled:     { type: Boolean, default: true },
-    freeRadiusKm:{ type: Number, default: 6,  min: 0 },
+    enabled: { type: Boolean, default: true },
+    freeRadiusKm: { type: Number, default: 6, min: 0 },
     maxTravelKm: { type: Number, default: 20, min: 0 },
-    feePerKm:    { type: Number, default: 10000, min: 0 }
+    feePerKm: { type: Number, default: 10000, min: 0 }
   },
   { _id: false }
 )
@@ -30,8 +30,8 @@ const PTProfileSchema = new Schema(
 
     // === MỚI: kênh nhận dạy (PT chọn 1-3 cái) ===
     deliveryModes: {
-      atPtGym:    { type: Boolean, default: true  }, // dạy tại gym của PT
-      atClient:   { type: Boolean, default: false }, // dạy tại nhà/gym của học viên
+      atPtGym: { type: Boolean, default: true }, // dạy tại gym của PT
+      atClient: { type: Boolean, default: false }, // dạy tại nhà/gym của học viên
       atOtherGym: { type: Boolean, default: false }  // dạy tại một gym khác (không phải primaryGym)
     },
 
@@ -45,6 +45,16 @@ const PTProfileSchema = new Schema(
     yearsExperience: { type: Number, min: 0, max: 50, default: 0, set: v => Math.trunc(v ?? 0) },
     certificates: [{ name: String, issuer: String, year: Number, url: String }],
 
+    workingHours: [{
+      // 1 = Sunday … 2 = Monday (hoặc 0..6 tuỳ bạn)
+      dayOfWeek: { type: Number, min: 0, max: 6, required: true },
+      intervals: [{
+        start: { type: String, required: true }, // "06:00"
+        end: { type: String, required: true }  // "11:00"
+      }] 
+    }],
+    // Thời gian nghỉ mặc định giữa 2 buổi (phút)
+    defaultBreakMin: { type: Number, default: 0, min: 0 },
     // Mô tả khu vực hoạt động (text)
     areaNote: { type: String, default: '' },
 
