@@ -32,3 +32,17 @@ export const SessionStatus = Object.freeze({
   RESCHEDULE_REQUESTED:'reschedule_requested',
   CONFIRMED:'confirmed'
 })
+
+export const PackageTags = Object.freeze({
+  WEIGHT_LOSS: 'weight_loss',
+  MUSCLE_GAIN: 'muscle_gain',
+  REHAB: 'rehab',
+  POSTURE: 'posture',
+  STRENGTH: 'strength',
+  ENDURANCE: 'endurance',
+  GENERAL_HEALTH: 'general_health',
+  NUTRITION: 'nutrition',
+  COMPETITION: 'competition',
+  OTHER: 'other'
+});
+

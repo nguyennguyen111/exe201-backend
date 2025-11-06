@@ -1,6 +1,7 @@
 // models/Package.js
 import mongoose from 'mongoose'
 const { Schema, model } = mongoose
+import { PackageTags } from '../domain/enums.js'
 
 const TravelPricingSchema = new Schema(
   {
@@ -26,7 +27,7 @@ const packageSchema = new Schema(
 
     // Lịch lặp cho gói (nếu có)
     recurrence: {
-          daysOfWeek: [[{ type: Number, min: 0, max: 6, required: true }]],
+      daysOfWeek: [[{ type: Number, min: 0, max: 6, required: true }]],
     },
 
     // Quy mô gói
@@ -52,7 +53,10 @@ const packageSchema = new Schema(
 
 
     // Tag để phân loại (ví dụ: giảm cân, tăng cơ,…)
-    tags: { type: [String], default: [] }
+    tags: {
+      type: [{ type: String, enum: Object.values(PackageTags) }],
+      default: []
+    }
   },
   { timestamps: true }
 )
