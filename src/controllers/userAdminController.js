@@ -83,7 +83,7 @@ const getAllPTRequests = async (req, res) => {
   try {
     const requests = await PTApprovalRequest.find()
       .populate("user", "name email")
-      .populate("ptProfile", "bio specialties verified")
+      .populate("ptProfile", "bio specialties verified location photo")
       .sort({ createdAt: -1 });
 
     res.status(StatusCodes.OK).json({
@@ -103,8 +103,8 @@ const getPTRequestDetail = async (req, res) => {
   try {
     const { id } = req.params;
     const request = await PTApprovalRequest.findById(id)
-      .populate("user", "name email")
-      .populate("ptProfile", "bio specialties verified");
+      .populate("user", "name avatar email phone gender dob isActive")
+      .populate("ptProfile", "bio specialties verified location photos");
 
     if (!request)
       return res

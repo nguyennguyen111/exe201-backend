@@ -1,10 +1,12 @@
-import express from "express";
-import { env } from "~/config/environment";
-import { errorHandlingMiddleware } from "~/middlewares/errorHandlingMiddleware";
-import { connectDB } from "~/config/database";
+import express from 'express'
+import { env } from '~/config/environment'
+import { errorHandlingMiddleware } from '~/middlewares/errorHandlingMiddleware'
+import { connectDB } from '~/config/database'
+import searchRoutes from './routes/searchRoutes.js'
 
 // router
 import authRoutes from "~/routes/authRoutes";
+// admin
 import adminRoutes from "./routes/adminRoutes";
 import studentRoutes from "./routes/studentRoutes";
 import ptPackageRoutes from "./routes/ptPackageRoutes";
@@ -15,6 +17,7 @@ import ptRoutes from "./routes/ptRoutes";
 import ptWalletRoues from "./routes/ptWalletRoutes";
 import messageRoutes from "./routes/messageRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
+import scheduleRoutes from "~/routes/scheduleRoutes.js";
 
 // student
 import cookieParser from "cookie-parser";
@@ -48,7 +51,8 @@ const START_SERVER = () => {
     next();
   });
 
-  // ROUTES
+  // user router
+  app.use('/api/search', searchRoutes)
   app.use("/api/auth", authRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/student", studentRoutes);
@@ -63,6 +67,9 @@ const START_SERVER = () => {
   app.use("/api/ai", aiRoutes);
  
 
+  app.use("/api/pt", ptRoutes);
+  app.use("/api/pt", scheduleRoutes);
+  app.use("/api/students", studentRoutes);
   app.use(errorHandlingMiddleware);
 
   // 🆕 Thêm dòng này sau khi app config xong

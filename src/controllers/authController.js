@@ -13,7 +13,6 @@ import PendingRegistration from '~/models/PendingRegistration'
 import PTProfile from '~/models/PTProfile'
 import PTWallet from '~/models/PTWallet'
 import { Roles } from '~/domain/enums' // dùng đúng enum với userSchema:contentReference[oaicite:7]{index=7}
-import { log } from 'console'
 
 const createPTArtifacts = async (user) => {
   // Tạo PTProfile rỗng (verified=false). Geo location để trống - PT điền sau.

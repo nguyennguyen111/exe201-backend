@@ -4,76 +4,95 @@ import PTProfile from '~/models/PTProfile'
 import User from '~/models/User'
 import cloudinary from '~/config/cloudinary'
 
-// helper: sanitize payload theo schema
-function sanitizePayload(body = {}) {
-  const allowed = [
-    'coverImage',
-    'bio',
-    'specialties',
-    'yearsExperience',
-    'certificates', // [{ name, issuer, year, url }]
-    'gymLocation',
-    'location', // { address, coords:{ type:'Point', coordinates:[lng,lat] } }
-    'availableForNewClients',
-    'socials', // { facebook, instagram, tiktok }
-    'videoIntroUrl'
-  ]
-
+// helpers/ptProfileSanitizer.js
+export function sanitizePTProfile(body = {}) {
   const payload = {}
-  for (const k of allowed) {
-    if (typeof body[k] !== 'undefined') payload[k] = body[k]
-  }
 
-  // specialties -> string[]
-  if (payload.specialties) {
+  // ----- flat fields -----
+  if (typeof body.coverImage !== 'undefined') payload.coverImage = String(body.coverImage || '').trim()
+  if (typeof body.bio !== 'undefined')        payload.bio = String(body.bio || '').trim()
+  if (typeof body.videoIntroUrl !== 'undefined')
+    payload.videoIntroUrl = String(body.videoIntroUrl || '').trim()
+  if (typeof body.availableForNewClients !== 'undefined')
+    payload.availableForNewClients = !!body.availableForNewClients
+  if (typeof body.areaNote !== 'undefined')   payload.areaNote = String(body.areaNote || '').trim()
+
+  // specialties
+  if (typeof body.specialties !== 'undefined') {
     payload.specialties = []
-      .concat(payload.specialties)
-      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .concat(body.specialties)
+      .map(s => (typeof s === 'string' ? s.trim() : ''))
       .filter(Boolean)
   }
 
-  // yearsExperience clamp (0..50) – validator cũng sẽ check, nhưng ta “dịu” FE
-  if (typeof payload.yearsExperience === 'number') {
-    payload.yearsExperience = Math.max(0, Math.min(50, payload.yearsExperience))
+  // yearsExperience clamp 0..50
+  if (typeof body.yearsExperience !== 'undefined') {
+    const y = Number(body.yearsExperience)
+    payload.yearsExperience = Number.isFinite(y) ? Math.max(0, Math.min(50, Math.trunc(y))) : 0
   }
 
-  // certificates: giữ những cái có name
-  if (payload.certificates) {
+  // certificates
+  if (typeof body.certificates !== 'undefined') {
     payload.certificates = []
-      .concat(payload.certificates)
-      .map((c) => ({
-        name: c?.name?.trim() || '',
-        issuer: c?.issuer?.trim() || '',
-        year: typeof c?.year === 'number' ? c.year : undefined,
-        url: c?.url?.trim() || ''
+      .concat(body.certificates)
+      .map(c => ({
+        name: (c?.name || '').trim(),
+        issuer: (c?.issuer || '').trim(),
+        year: Number.isFinite(Number(c?.year)) ? Number(c.year) : undefined,
+        url: (c?.url || '').trim()
       }))
-      .filter((c) => c.name) // bỏ chứng chỉ trống
+      .filter(c => c.name)
   }
 
-  // socials: chỉ giữ 3 field cho sạch
-  if (payload.socials) {
-    payload.socials = {
-      facebook: payload.socials.facebook || '',
-      instagram: payload.socials.instagram || '',
-      tiktok: payload.socials.tiktok || ''
+  // primaryGym
+  if (typeof body.primaryGym !== 'undefined') {
+    const pg = body.primaryGym || {}
+    const out = {}
+    if (typeof pg.name !== 'undefined')    out.name = String(pg.name || '').trim()
+    if (typeof pg.address !== 'undefined') out.address = String(pg.address || '').trim()
+
+    if (typeof pg.location !== 'undefined') {
+      const coords = pg?.location?.coordinates
+      const [lng, lat] =
+        Array.isArray(coords) && coords.length === 2
+          ? [Number(coords[0]) || 0, Number(coords[1]) || 0]
+          : [0, 0]
+      out.location = { type: 'Point', coordinates: [lng, lat] }
+    }
+
+    if (typeof pg.photos !== 'undefined') {
+      out.photos = []
+        .concat(pg.photos)
+        .map(u => (typeof u === 'string' ? u.trim() : ''))
+        .filter(Boolean)
+    }
+
+    if (Object.keys(out).length) payload.primaryGym = out
+  }
+
+  // deliveryModes
+  if (typeof body.deliveryModes !== 'undefined') {
+    payload.deliveryModes = {
+      atPtGym:    !!body.deliveryModes?.atPtGym,
+      atClient:   !!body.deliveryModes?.atClient,
+      atOtherGym: !!body.deliveryModes?.atOtherGym
     }
   }
 
-  // location: đảm bảo cấu trúc GeoJSON
-  if (payload.location) {
-    const loc = payload.location
-    const coords = loc?.coords?.coordinates
-    payload.location = {
-      address: loc?.address || '',
-      coords: {
-        type: 'Point',
-        coordinates:
-          Array.isArray(coords) && coords.length === 2
-            ? [Number(coords[0]), Number(coords[1])]
-            : [0, 0]
-      }
+  // travelPolicy
+  if (typeof body.travelPolicy !== 'undefined') {
+    payload.travelPolicy = {
+      enabled:      !!body.travelPolicy?.enabled,
+      freeRadiusKm: Number(body.travelPolicy?.freeRadiusKm) || 0,
+      feePerKm:     Number(body.travelPolicy?.feePerKm) || 0,
+      maxTravelKm:  Number(body.travelPolicy?.maxTravelKm) || 0
     }
   }
+
+  // never allow system fields
+  delete payload.verified
+  delete payload.ratingAvg
+  delete payload.ratingCount
 
   return payload
 }
@@ -129,39 +148,45 @@ const getMyProfile = async (req, res) => {
 }
 
 // PUT /api/pt/profile/me  (upsert)
-const upsertMyProfile = async (req, res) => {
+export const upsertMyProfile = async (req, res) => {
   try {
     const ptId = req.user?._id
 
-    // chỉ PT mới được cập nhật hồ sơ PT
+    // Chỉ PT mới được cập nhật hồ sơ PT
     const user = await User.findById(ptId).select('role')
     if (!user || user.role !== 'pt') {
       return res
         .status(StatusCodes.FORBIDDEN)
-        .json({ success: false, message: 'Chỉ PT mới cập nhật hồ sơ PT' })
+        .json({ success: false, message: 'Only PT can update PT profile' })
     }
 
-    const payload = sanitizePayload(req.body)
+    // Làm sạch payload theo model mới (không có socials)
+    const payload = sanitizePTProfile(req.body)
 
-    // ❗ Không cho client chỉnh các field hệ thống
-    // (verified, ratingAvg, ratingCount) — nếu có thì xoá
+    // Không cho client set các field hệ thống
     delete payload.verified
     delete payload.ratingAvg
     delete payload.ratingCount
+    delete payload.user
 
     const doc = await PTProfile.findOneAndUpdate(
       { user: ptId },
       { $set: { user: ptId, ...payload } },
-      { new: true, upsert: true, runValidators: true }
-    )
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      }
+    ).lean()
 
     return res
       .status(StatusCodes.OK)
-      .json({ success: true, message: 'Lưu hồ sơ PT thành công', data: doc })
+      .json({ success: true, message: 'PT profile saved', data: doc })
   } catch (error) {
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ success: false, message: 'Lỗi server', error: error.message })
+      .json({ success: false, message: 'Server error', error: error.message })
   }
 }
 

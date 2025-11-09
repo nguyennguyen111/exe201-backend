@@ -2,6 +2,12 @@ import express from 'express'
 import { authMiddleware } from '~/middlewares/authMiddleware'
 import { ptProfileController } from '~/controllers/ptProfileController'
 import multer from 'multer'
+import {
+  ptSubmitReview,
+  ptListMyRequests,
+  ptGetMyLatestRequest,
+  ptCancelMyPending
+} from '~/controllers/ptApprovalController.js'
 
 const router = express.Router()
 const upload = multer({ storage: multer.memoryStorage() })
@@ -39,6 +45,11 @@ router.get(
   authMiddleware.isPT,
   ptProfileController.getMyAccount
 )
+
+router.post('/profile/submit-review', authMiddleware.authenTokenCookie, authMiddleware.isPT, ptSubmitReview)
+router.get('/profile/requests', authMiddleware.authenTokenCookie, authMiddleware.isPT, ptListMyRequests)
+router.get('/profile/requests/latest', authMiddleware.authenTokenCookie, authMiddleware.isPT, ptGetMyLatestRequest)
+router.post('/profile/cancel-pending', authMiddleware.authenTokenCookie, authMiddleware.isPT, ptCancelMyPending)
 
 router.get('/public/list', ptProfileController.getAllPTProfilesPublic)
 router.get('/public/:id', ptProfileController.getPTDetailPublic)
