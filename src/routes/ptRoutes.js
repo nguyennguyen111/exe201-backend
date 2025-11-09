@@ -4,6 +4,9 @@ import { ptController } from '~/controllers/ptController'
 
 const router = express.Router()
 
-router.get('/me/verification-status', authMiddleware.authenTokenCookie, authMiddleware.isPT, ptController.isPTVerified)
+router.get('/me/verification-status', authMiddleware.authenTokenCookie, authMiddleware.isPT, ptController.isPTVerified);
+
+// ✅ Lấy danh sách học viên của PT (đang đăng nhập)
+router.get("/me/students", authMiddleware.authenTokenCookie, authMiddleware.isPT, ptController.getMyStudents);
 
 export default router
