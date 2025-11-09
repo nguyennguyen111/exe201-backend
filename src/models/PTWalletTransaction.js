@@ -47,6 +47,9 @@ const walletTxnSchema = new Schema(
 
 // Index để truy vấn nhanh lịch sử
 walletTxnSchema.index({ pt: 1, createdAt: -1 })
+// models/PTWalletTransaction.js
+walletTxnSchema.index({ refId: 1, refType: 1 }, { unique: true, sparse: true });
+
 walletTxnSchema.index({ type: 1, status: 1 })
 
 export default model('PTWalletTransaction', walletTxnSchema)

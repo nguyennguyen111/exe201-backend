@@ -59,6 +59,6 @@ sessionSchema.pre('validate', function (next) {
 // sessionSchema.index({ pt: 1, startTime: 1 })                 // truy vấn lịch PT
 sessionSchema.index({ student: 1, startTime: 1 })            // lịch của học viên
 sessionSchema.index({ studentPackage: 1, status: 1 })        // theo dõi gói
-sessionSchema.index({ pt: 1, startTime: 1 }, { unique: true }) // tránh 2 session trùng giờ cho 1 PT
+sessionSchema.index ({ slot: 1 }, {unique: true, sparse: true}) // tránh 2 session trùng giờ cho 1 PT
 
 export default model('Session', sessionSchema)
