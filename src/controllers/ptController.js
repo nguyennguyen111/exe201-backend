@@ -27,15 +27,36 @@ export const isPTVerified = async (req, res) => {
 
 // 🧠 Lấy tất cả học viên của PT (dựa trên gói)
 export const getMyStudents = async (req, res) => {
-  const ptId = req.user._id;
-  const data = await StudentPackage
-    .find({ pt: ptId })
-    .populate('student', 'name avatar email phone')
-    .populate('package', 'name totalSessions durationDays')
-    .lean();
+  try {
+    const ptId = req.user._id;
 
-  res.json(data);
+    const packages = await StudentPackage.find({ pt: ptId })
+      .populate("student", "name avatar email phone")
+      .populate("package", "name totalSessions durationDays")
+      .lean();
+
+    // 🧠 Map lại chỉ trả về thông tin học viên thật
+    const students = packages
+      .filter(pkg => pkg.student) // lọc gói có student hợp lệ
+      .map(pkg => ({
+        _id: pkg.student._id, // ✅ id học viên thật
+        name: pkg.student.name,
+        avatar: pkg.student.avatar,
+        email: pkg.student.email,
+        phone: pkg.student.phone,
+        packageId: pkg._id, // lưu để theo dõi gói nếu cần
+        packageName: pkg.package?.name,
+        totalSessions: pkg.package?.totalSessions,
+        durationDays: pkg.package?.durationDays,
+      }));
+
+    res.json(students);
+  } catch (err) {
+    console.error("❌ getMyStudents error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
+
 
 // 🏷️ Lấy danh sách gói template của PT
 export const getMyPackages = async (req, res) => {
