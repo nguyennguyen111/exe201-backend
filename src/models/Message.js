@@ -1,16 +1,16 @@
 import mongoose from 'mongoose'
 
 const messageSchema = new mongoose.Schema({
-  chat: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Chat', 
+  chat: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Chat',
     required: true,
     index: true
   },
-  sender: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+  sender: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
   text: {
     type: String,
@@ -18,22 +18,24 @@ const messageSchema = new mongoose.Schema({
     trim: true,
     maxlength: 2000
   },
-  
+
   // Tùy chọn: đính kèm file (ảnh, video...)
   attachments: [{
     url: String,
-    type: { 
-      type: String, 
-      enum: ['image', 'video', 'document'] 
+    type: {
+      type: String,
+      enum: ['image', 'video', 'document']
     },
     filename: String
   }],
-  
-  read: { 
-    type: Boolean, 
-    default: false 
+
+  readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+  read: {
+    type: Boolean,
+    default: false
   },
-  
+
   readAt: Date
 }, { timestamps: true })
 
