@@ -26,6 +26,7 @@ export const isPTVerified = async (req, res) => {
 }
 
 // 🧠 Lấy tất cả học viên của PT (dựa trên gói)
+// MỖI HỌC VIÊN CHỈ TRẢ VỀ 1 LẦN
 export const getMyStudents = async (req, res) => {
   try {
     const ptId = req.user._id;
@@ -35,27 +36,48 @@ export const getMyStudents = async (req, res) => {
       .populate("package", "name totalSessions durationDays")
       .lean();
 
-    // 🧠 Map lại chỉ trả về thông tin học viên thật
-    const students = packages
-      .filter(pkg => pkg.student) // lọc gói có student hợp lệ
-      .map(pkg => ({
-        _id: pkg.student._id, // ✅ id học viên thật
-        name: pkg.student.name,
-        avatar: pkg.student.avatar,
-        email: pkg.student.email,
-        phone: pkg.student.phone,
-        packageId: pkg._id, // lưu để theo dõi gói nếu cần
-        packageName: pkg.package?.name,
-        totalSessions: pkg.package?.totalSessions,
-        durationDays: pkg.package?.durationDays,
-      }));
+    const map = new Map(); // key: studentId, value: info học viên
 
-    res.json(students);
+    for (const pkg of packages) {
+      const s = pkg.student;
+      if (!s) continue; // skip nếu dữ liệu lỗi
+
+      const studentId = String(s._id);
+
+      // Nếu chưa có trong map thì thêm vào
+      if (!map.has(studentId)) {
+        map.set(studentId, {
+          _id: s._id,                // id học viên thật
+          name: s.name,
+          avatar: s.avatar,
+          email: s.email,
+          phone: s.phone,
+          // nếu cần thông tin gói gần nhất thì giữ lại 1 cái
+          packageId: pkg._id,
+          packageName: pkg.package?.name,
+          totalSessions: pkg.package?.totalSessions,
+          durationDays: pkg.package?.durationDays,
+        });
+      }
+
+      // Nếu sau này bạn muốn “ưu tiên gói mới nhất”, có thể update ở đây
+      // ví dụ so sánh createdAt của pkg rồi overwrite
+    }
+
+    const students = Array.from(map.values());
+
+    // Nếu FE đang đọc res.data.data thì trả như sau:
+    // return res.json({ success: true, data: students });
+
+    // Còn hiện tại bạn đang fallback cả 2 kiểu (data hoặc res trực tiếp)
+    // nên trả thế này vẫn OK:
+    return res.json({ success: true, data: students });
   } catch (err) {
     console.error("❌ getMyStudents error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // 🏷️ Lấy danh sách gói template của PT
