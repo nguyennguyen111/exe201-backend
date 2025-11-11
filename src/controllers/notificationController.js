@@ -7,11 +7,10 @@ import mongoose from "mongoose";
 import { StatusCodes } from "http-status-codes";
 
 /**
- * 📋 Lấy danh sách thông báo của user hiện tại
+ * 📋 Get all notifications of the current user
  */
 export const getMyNotifications = async (req, res) => {
   try {
-    // ✅ Fix: dùng _id thay vì id
     const userId = req.user._id || req.user.id;
     const limit = parseInt(req.query.limit) || 20;
 
@@ -21,62 +20,81 @@ export const getMyNotifications = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit);
 
-    res.status(StatusCodes.OK).json(notifications);
+    // 🛠️ FIX 1: Gói dữ liệu trả về trong object "items" + thêm totalUnread cho frontend
+    const totalUnread = await Notification.countDocuments({
+      user: new mongoose.Types.ObjectId(userId),
+      read: false,
+    });
+
+    res.status(StatusCodes.OK).json({
+      items: notifications, // ✅ Trả về danh sách thông báo trong "items" (frontend yêu cầu)
+      totalUnread,          // ✅ Số thông báo chưa đọc, hiển thị trên icon chuông
+    });
   } catch (error) {
     console.error("❌ getMyNotifications error:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      message: "Lỗi khi lấy thông báo",
+      message: "Error fetching notifications",
       error: error.message,
     });
   }
 };
 
 /**
- * ✅ Đánh dấu 1 thông báo là đã đọc
+ * ✅ Mark a single notification as read
  */
 export const markAsRead = async (req, res) => {
   try {
+    // 🛠️ FIX 2: Thêm xử lý 404 khi không tìm thấy + StatusCodes chuẩn hóa
     const updated = await markNotificationAsRead(req.params.id);
     if (!updated) {
       return res
         .status(StatusCodes.NOT_FOUND)
-        .json({ message: "Không tìm thấy thông báo" });
+        .json({ message: "Notification not found" });
     }
+
     res.status(StatusCodes.OK).json({
-      message: "Đã đánh dấu thông báo là đã đọc",
+      message: "Notification marked as read",
       notification: updated,
     });
   } catch (error) {
     console.error("❌ markAsRead error:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      message: "Lỗi khi cập nhật trạng thái đọc",
+      message: "Error updating notification status",
       error: error.message,
     });
   }
 };
 
 /**
- * ✅ Đánh dấu tất cả là đã đọc
+ * ✅ Mark all notifications as read
  */
 export const markAllAsRead = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     await markAllNotificationsAsRead(userId);
-    res
-      .status(StatusCodes.OK)
-      .json({ message: "Đã đánh dấu tất cả thông báo là đã đọc" });
+
+    // 🛠️ FIX 3: Trả về lại tổng số chưa đọc (remaining) để frontend cập nhật badge real-time
+    const remaining = await Notification.countDocuments({
+      user: new mongoose.Types.ObjectId(userId),
+      read: false,
+    });
+
+    res.status(StatusCodes.OK).json({
+      message: "All notifications marked as read",
+      totalUnread: remaining, // ✅ Trả về số thông báo chưa đọc còn lại
+    });
   } catch (error) {
     console.error("❌ markAllAsRead error:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      message: "Lỗi khi cập nhật tất cả thông báo",
+      message: "Error marking all as read",
       error: error.message,
     });
   }
 };
 
 /**
- * 🟢 Đánh dấu feedback đã gửi
- * (Dành cho Student sau khi đánh giá HLV)
+ * 🟢 Mark feedback as sent
+ * (Used when student sends feedback to PT)
  */
 export const markFeedbackSent = async (req, res) => {
   try {
@@ -91,21 +109,21 @@ export const markFeedbackSent = async (req, res) => {
     if (!noti) {
       return res
         .status(StatusCodes.NOT_FOUND)
-        .json({ message: "Không tìm thấy thông báo" });
+        .json({ message: "Notification not found" });
     }
 
-    // ✅ Cập nhật meta.feedbackSent = true
+    // 🛠️ FIX 4: Thêm mới hoàn toàn hàm này để cập nhật trạng thái feedbackSent trong meta
     noti.meta = { ...(noti.meta || {}), feedbackSent: true };
     await noti.save();
 
     res.status(StatusCodes.OK).json({
-      message: "Đã đánh dấu thông báo feedback là đã gửi",
+      message: "Feedback notification marked as sent",
       notification: noti,
     });
   } catch (error) {
     console.error("❌ markFeedbackSent error:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      message: "Lỗi khi cập nhật thông báo feedback",
+      message: "Error updating feedback notification",
       error: error.message,
     });
   }

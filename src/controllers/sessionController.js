@@ -1,94 +1,116 @@
-import Session from '../models/Session.js'
-import Notification from '../models/Notification.js'
+import Session from "../models/Session.js";
+import Notification from "../models/Notification.js";
+import PTProfile from "../models/PTProfile.js";
 
 /**
  * @desc Update session status or PT note
  * @route PUT /api/sessions/:id/status
  * @access Private (PT/Admin)
  */
-
 export const updateSessionStatus = async (req, res) => {
   try {
-    const { id } = req.params
-    const { status, ptNote, attendance } = req.body
-    const userId = req.user?._id  // từ middleware auth
+    const { id } = req.params;
+    const { status, ptNote, attendance } = req.body;
+    const userId = req.user?._id;
+     // from auth middleware
 
     const session = await Session.findById(id)
-      .populate('student', 'fullName email')
-      .populate('pt', 'fullName')
-      .populate('studentPackage', 'totalSessions')
-
+      .populate("student", "fullName email")
+      .populate("pt", "fullName")
+      .populate("studentPackage", "totalSessions")
     if (!session) {
-      return res.status(404).json({ message: 'Không tìm thấy buổi tập.' })
+      return res.status(404).json({ message: "Session not found." });
     }
 
-    // ✅ Kiểm tra quyền cập nhật
-    const sessionPtId = session.pt?._id ? String(session.pt._id) : String(session.pt)
-    const currentUserId = String(userId)
-    if (sessionPtId !== currentUserId && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Không có quyền cập nhật buổi tập này.' })
+    // ✅ Authorization check
+    const sessionPtId = session.pt?._id ? String(session.pt._id) : String(session.pt);
+    const currentUserId = String(userId);
+    if (sessionPtId !== currentUserId && req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to update this session." });
     }
 
-    // ✅ Cập nhật dữ liệu
-    if (status) session.status = status
-    if (ptNote !== undefined) session.ptNote = ptNote
-    if (attendance) session.attendance = attendance
-    if (status === 'completed') session.completedAt = new Date()
+    // ✅ Update session data
+    if (status) session.status = status;
+    if (ptNote !== undefined) session.ptNote = ptNote;
+    if (attendance) session.attendance = attendance;
+    if (status === "completed") session.completedAt = new Date();
 
-    await session.save()
+    await session.save();
 
-    // ✅ Tạo nội dung thông báo linh hoạt (🔥 FIX CHÍNH Ở ĐÂY)
-    let message = `Trạng thái buổi tập "${session.title}" đã được cập nhật`
-    if (status) message += `: ${status}`
-    if (ptNote) message += `. Ghi chú huấn luyện viên: ${ptNote}`
-    message += "."
+    // ✅ Build notification message dynamically
+    let message = `The session "${session.title}" has been updated`;
+    if (status) message += `: ${status}`;
+    if (ptNote) message += `. Trainer's note: ${ptNote}`;
+    if (!message.endsWith(".")) message += ".";
 
-    // ✅ Gửi thông báo cho học viên
+    // ✅ Save notification to database
     await Notification.create({
       user: session.student._id,
-      type: 'session',
-      title: 'Cập nhật buổi tập',
+      type: "session",
+      title: "Session Update",
       message,
-      meta: { sessionId: session._id, status, ptNote }
-    })
+      meta: { sessionId: session._id, status, ptNote },
+    });
 
-    // ✅ Nếu PT vừa hoàn thành buổi cuối cùng trong gói tập
-    if (status === 'completed') {
-      const totalSessions = session.studentPackage?.totalSessions || 0
-      const completedCount = await Session.countDocuments({
-        studentPackage: session.studentPackage,
-        status: 'completed'
-      })
-
-      if (totalSessions > 0 && completedCount >= totalSessions) {
-        // ✅ Gửi thêm thông báo yêu cầu học viên feedback và đánh giá PT
-        await Notification.create({
-          user: session.student._id,
-          type: 'session',
-          title: 'Hoàn thành gói tập 🎉',
-          message: `Bạn đã hoàn thành toàn bộ buổi tập trong gói! Vui lòng gửi phản hồi và đánh giá cho HLV ${session.pt.fullName}.`,
-          meta: {
-            ptId: session.pt._id,
-            studentPackageId: session.studentPackage._id,
-            feedbackRequest: true
-          }
-        })
-      }
+    // ✅ Send realtime notification via Socket.IO (if available)
+    if (global.sendNotificationToUser) {
+      global.sendNotificationToUser(session.student._id, {
+        title: "Session Update",
+        message,
+        type: "session",
+        createdAt: new Date(),
+        meta: { sessionId: session._id, status, ptNote },
+      });
     }
 
-    return res.json({
-      message: 'Cập nhật buổi tập thành công',
-      session
-    })
-  } catch (err) {
-    console.error(err)
-    return res.status(500).json({ message: 'Lỗi server', error: err.message })
+    // ✅ If this was the final session in the package
+if (status === "completed") {
+  const totalSessions = session.studentPackage?.totalSessions || 0;
+  const completedCount = await Session.countDocuments({
+    studentPackage: session.studentPackage,
+    status: "completed",
+  });
+
+  if (totalSessions > 0 && completedCount >= totalSessions) {
+    session.studentPackage.status = "completed";
+    await session.studentPackage.save();
+
+    // 🟢 Tìm PTProfile theo user
+    const ptProfile = await PTProfile.findOne({ user: session.pt._id }).select("_id");
+
+    console.log("✅ DEBUG Feedback Meta:", {
+      ptId: session.pt._id,
+      ptProfileId: ptProfile?._id,
+      studentPackageId: session.studentPackage._id,
+    });
+
+    await Notification.create({
+      user: session.student._id,
+      type: "session",
+      title: "🎉 Training Package Completed",
+      message: `You’ve completed all your training sessions! Please take a moment to rate and provide feedback for your trainer, ${session.pt.fullName}.`,
+      meta: {
+        ptId: session.pt._id,
+        studentPackageId: session.studentPackage._id,
+        feedbackRequest: true,
+      },
+    });
   }
 }
-
+    return res.json({
+      message: "Session updated successfully",
+      session,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
 
 /**
- * @desc Lấy danh sách session của PT hiện tại
+ * @desc Get all sessions assigned to the current PT
  * @route GET /api/sessions/pt
  * @access Private (PT)
  */
@@ -104,11 +126,12 @@ export const getSessionsByPT = async (req, res) => {
       )
       .sort({ startTime: 1 });
 
-    // ✅ Convert sang format frontend yêu cầu
+    // ✅ Convert to frontend-friendly format
     const mapped = sessions.map((s) => {
       const start = new Date(s.startTime);
       const end = new Date(s.endTime);
 
+      // Adjust to Vietnam timezone (+7)
       start.setHours(start.getHours() + 7);
       end.setHours(end.getHours() + 7);
 
@@ -118,9 +141,9 @@ export const getSessionsByPT = async (req, res) => {
 
       return {
         ...s.toObject(),
-        date,               // "2025-11-10"
-        start: hhmm(start), // "13:00"
-        end: hhmm(end),     // "14:00"
+        date, // e.g. "2025-11-10"
+        start: hhmm(start), // e.g. "13:00"
+        end: hhmm(end), // e.g. "14:00"
       };
     });
 
@@ -129,7 +152,7 @@ export const getSessionsByPT = async (req, res) => {
       data: mapped,
     });
   } catch (error) {
-    console.error("❌ Lỗi getSessionsByPT:", error);
-    res.status(500).json({ message: "Lỗi server khi tải session" });
+    console.error("❌ getSessionsByPT error:", error);
+    res.status(500).json({ message: "Server error while loading sessions" });
   }
 };

@@ -1,6 +1,7 @@
 // src/controllers/feedbackController.js
 import Feedback from "../models/Feedback.js";
 import PTProfile from "../models/PTProfile.js";
+import Notification from "../models/Notification.js";
 
 /**
  * @desc Tạo feedback mới
@@ -8,20 +9,56 @@ import PTProfile from "../models/PTProfile.js";
  */
 export const createFeedback = async (req, res) => {
   try {
-    const feedback = await Feedback.create(req.body);
+    // ✅ Lấy dữ liệu chuẩn theo schema mới
+    const { studentPackage, pt, rating, comment, notificationId } = req.body;
+    const student = req.user?._id || req.body.student;
 
-    // Cập nhật điểm trung bình PT
-    const all = await Feedback.find({ ptProfile: feedback.ptProfile });
-    const avg = all.reduce((sum, f) => sum + f.rating, 0) / all.length;
+    if (!pt || !studentPackage || !rating) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu thông tin bắt buộc (pt, studentPackage, rating).",
+      });
+    }
 
-    await PTProfile.findByIdAndUpdate(feedback.ptProfile, {
-      averageRating: avg.toFixed(1),
+    // ✅ Tạo feedback mới
+    const feedback = await Feedback.create({
+      studentPackage,
+      student,
+      pt,
+      rating,
+      comment,
     });
 
-    res.status(201).json({ success: true, data: feedback });
+    // ✅ Nếu có notification (meta feedbackRequest) → đánh dấu đã feedback
+    if (notificationId) {
+      await Notification.findByIdAndUpdate(notificationId, {
+        "meta.feedbackSent": true,
+      });
+    }
+
+    // ✅ Cập nhật điểm trung bình cho PTProfile
+    const allFeedbacks = await Feedback.find({ pt });
+    const avg =
+      allFeedbacks.length > 0
+        ? allFeedbacks.reduce((sum, f) => sum + f.rating, 0) / allFeedbacks.length
+        : 0;
+
+    await PTProfile.findOneAndUpdate(
+      { user: pt },
+      { ratingAvg: avg.toFixed(1), ratingCount: allFeedbacks.length }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Gửi đánh giá thành công!",
+      data: feedback,
+    });
   } catch (error) {
-    console.error("Create feedback error:", error);
-    res.status(400).json({ success: false, message: error.message });
+    console.error("❌ Create feedback error:", error);
+    res.status(400).json({
+      success: false,
+      message: error.message || "Lỗi khi tạo feedback.",
+    });
   }
 };
 
@@ -36,10 +73,20 @@ export const getFeedbackByPT = async (req, res) => {
       .sort({ createdAt: -1 });
 
     const avgRating =
-      feedbacks.reduce((s, f) => s + f.rating, 0) / (feedbacks.length || 1);
+      feedbacks.length > 0
+        ? feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length
+        : 0;
 
-    res.json({ success: true, avgRating, data: feedbacks });
+    res.json({
+      success: true,
+      avgRating: avgRating.toFixed(1),
+      data: feedbacks,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("❌ Get feedback error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Lỗi khi lấy feedback.",
+    });
   }
 };

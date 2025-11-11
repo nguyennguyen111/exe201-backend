@@ -107,4 +107,10 @@ export const initChatSocket = (server) => {
       console.log("❌ Client disconnected:", socket.id);
     });
   });
+
+  // ✅ Cho phép các controller khác gọi emit notification realtime
+    global.sendNotificationToUser = (userId, payload) => {
+    io.to(String(userId)).emit("notification", payload);
+      console.log(`📩 [Realtime] Sent notification to user ${userId}`);
+};
 };
