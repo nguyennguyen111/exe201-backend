@@ -2,6 +2,8 @@
 import { StatusCodes } from 'http-status-codes'
 import Package from '~/models/Package'
 import StudentPackage from '~/models/StudentPackage'
+import PTMaterial from '~/models/PTMaterial.js'
+
 
 // Mon-first ordering: 1..6..0(CN)
 const MON_FIRST = [1, 2, 3, 4, 5, 6, 0];
@@ -145,26 +147,47 @@ const getPackagesByPTPublic = async (req, res) => {
 // Xem chi tiết một gói
 const getPackageById = async (req, res) => {
   try {
-    const pkg = await Package.findById(req.params.id).populate('pt', 'name avatar');
+    const pkg = await Package.findById(req.params.id)
+      .populate('pt', 'name avatar')
+      .lean(); // dùng lean để thêm trường tùy chỉnh
+
     if (!pkg) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Không tìm thấy gói tập' });
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: 'Không tìm thấy gói tập',
+      });
     }
 
     const isOwner = req.user && String(pkg.pt._id) === String(req.user._id);
     const isPublic = pkg.visibility === 'public';
     if (!isOwner && !isPublic) {
-      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'Bạn không có quyền xem gói này' });
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: 'Bạn không có quyền xem gói này',
+      });
     }
+
+    // 🔍 Truy vấn ngược tất cả materials có sharedWithPackages chứa id này
+    const materials = await PTMaterial.find({
+      sharedWithPackages: pkg._id,
+    })
+      .select('title name type url updatedAt createdAt')
+      .lean();
+
+    // 🔗 Gắn thêm vào pkg
+    pkg.materials = materials || [];
 
     return res.status(StatusCodes.OK).json({ success: true, data: pkg });
   } catch (error) {
+    console.error('❌ getPackageById error:', error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Lỗi server',
-      error: error.message
+      error: error.message,
     });
   }
 };
+
 
 // PT cập nhật gói của mình
 const updatePackage = async (req, res) => {
