@@ -1,30 +1,38 @@
 import Session from '../models/Session.js'
 
-// API gộp xem lịch tập (tương lai, hiện tại, quá khứ)
+// ✅ API lấy danh sách lịch tập (lọc theo user, vai trò, gói, thời gian)
 export const getTrainingSessions = async (req, res) => {
   try {
-    const { userId, role, type } = req.query
+    const { userId, role, type, packageId } = req.query
     const now = new Date()
 
+    // 🧠 Cơ sở lọc theo role
     let filterBase = role === 'pt' ? { pt: userId } : { student: userId }
 
-    //Điều kiện thời gian theo type
+    // 🧩 Nếu có packageId → chỉ lấy lịch của gói đó
+    if (packageId) {
+      filterBase.studentPackage = packageId
+    }
+
+    // ⏱️ Lọc theo loại thời gian
     let timeFilter = {}
     switch (type) {
       case 'upcoming':
-        timeFilter = { startTime: { $gt: now } } // sau thời điểm hiện tại
+        timeFilter = { startTime: { $gt: now } }
         break
       case 'ongoing':
-        timeFilter = { startTime: { $lte: now }, endTime: { $gte: now } } // đang diễn ra
+        timeFilter = { startTime: { $lte: now }, endTime: { $gte: now } }
         break
       case 'history':
-        timeFilter = { endTime: { $lt: now } } // đã kết thúc
+        timeFilter = { endTime: { $lt: now } }
         break
       default:
-        timeFilter = {} // nếu không truyền type thì lấy tất cả
+        timeFilter = {}
     }
 
     const filter = { ...filterBase, ...timeFilter }
+
+    console.log('📥 Query filter:', filter)
 
     const sessions = await Session.find(filter)
       .populate('student', 'name email')
@@ -39,10 +47,11 @@ export const getTrainingSessions = async (req, res) => {
       sessions
     })
   } catch (err) {
-    console.error(err)
+    console.error('❌ Lỗi khi lấy training sessions:', err)
     res.status(500).json({
       success: false,
-      message: 'Error fetching training sessions'
+      message: 'Error fetching training sessions',
+      error: err.message
     })
   }
 }

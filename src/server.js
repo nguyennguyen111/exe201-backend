@@ -8,6 +8,7 @@ import searchRoutes from './routes/searchRoutes.js'
 import authRoutes from '~/routes/authRoutes'
 import studentRoutes from './routes/studentRoutes.js'
 import trainingSessionRoutes from './routes/trainingSessionRoutes.js'
+import studentPackageRoutes from './routes/studentPackageRoutes.js'
 // admin
 import adminRoutes from './routes/adminRoutes'
 
@@ -78,6 +79,7 @@ const START_SERVER = () => {
   app.use('/api/sessions', sessionRoutes)
   app.use(errorHandlingMiddleware)
   app.use('/api/training-sessions', trainingSessionRoutes)
+  app.use('/api/student-packages', studentPackageRoutes)
 
   // 🆕 Thêm dòng này sau khi app config xong
   initChatSocket(server)
