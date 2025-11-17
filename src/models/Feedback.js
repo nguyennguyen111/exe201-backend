@@ -1,13 +1,22 @@
-// models/Feedback.js
-import mongoose from 'mongoose';
+import mongoose from 'mongoose'
+const { Schema, model } = mongoose
 
-const feedbackSchema = new mongoose.Schema({
-  from: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  to: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  rating: { type: Number, min: 1, max: 5 },
-  comment: String,
-  session: { type: mongoose.Schema.Types.ObjectId, ref: 'Session' },
-  studentPackage: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentPackage' }
-}, { timestamps: true });
+const FeedbackSchema = new Schema(
+  {
+    studentPackage: { type: Schema.Types.ObjectId, ref: 'StudentPackage', required: true },
+    sessionIndex: { type: Number }, // nếu feedback theo buổi; bỏ nếu theo gói
+    student: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    pt: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 
-export default mongoose.model('Feedback', feedbackSchema);
+    // ⭐ Điểm & nhận xét
+    rating: { type: Number, min: 1, max: 5, required: true },
+    comment: { type: String, default: '' },
+
+  },
+  { timestamps: true }
+)
+
+FeedbackSchema.index({ student: 1, pt: 1, studentPackage: 1 }, { unique: true })
+
+const Feedback = model('Feedback', FeedbackSchema)
+export default Feedback

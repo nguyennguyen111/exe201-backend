@@ -73,3 +73,5 @@ export const authMiddleware = {
   isStudent,
   isPT
 }
+
+export const protect = authenTokenCookie
