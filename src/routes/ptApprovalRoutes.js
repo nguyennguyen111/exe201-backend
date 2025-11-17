@@ -1,6 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
-import { submitPTApprovalRequest } from "../controllers/ptApprovalController.js";
+import { submitPTApprovalRequest, ptGetMyLatestRequest } from "../controllers/ptApprovalController.js";
 
 const router = express.Router();
 
@@ -10,5 +10,7 @@ router.post(
   authMiddleware.isPT,
   submitPTApprovalRequest
 );
+
+router.get("/approval-requests/my", authMiddleware.authenTokenCookie, authMiddleware.isPT, ptGetMyLatestRequest)
 
 export default router;
