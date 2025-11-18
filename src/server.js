@@ -3,7 +3,7 @@ import { env } from "~/config/environment";
 import { errorHandlingMiddleware } from "~/middlewares/errorHandlingMiddleware";
 import { connectDB } from "~/config/database";
 import searchRoutes from "./routes/searchRoutes.js";
-
+import studentMaterialRoutes from "./routes/studentMaterialRoutes.js";
 // router
 import authRoutes from "~/routes/authRoutes";
 import studentRoutes from "./routes/studentRoutes.js";
@@ -85,6 +85,7 @@ const START_SERVER = () => {
   app.use("/api/admin/transactions", transactionRoutes);
   app.use("/api/pt", ptMaterialRoutes);
   app.use("/api/pt", ptProfileRoutes);
+  app.use("/api/student", studentMaterialRoutes);
 
   // cho FE truy cập file đã upload
   app.use("/uploads", express.static("uploads"));
