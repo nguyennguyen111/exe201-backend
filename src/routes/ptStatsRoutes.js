@@ -20,4 +20,10 @@ router.get(
 );
 router.get("/sessions-completed", authMiddleware.authenTokenCookie, authMiddleware.isPT, ptStatsController.getCompletedSessionsByYear);
 router.get("/cancel-rate", authMiddleware.authenTokenCookie, authMiddleware.isPT, ptStatsController.getCancelRateByYear);
+router.get(
+  "/rating",
+  authMiddleware.authenTokenCookie,
+  authMiddleware.isPT,
+  ptStatsController.getPTRatingStats
+);
 export default router;

@@ -2,13 +2,38 @@ import mongoose from "mongoose";
 import Transaction from "../models/Transaction.js";
 import StudentPackage from "../models/StudentPackage.js";
 import Session from "../models/Session.js"; 
+import PTProfile from "../models/PTProfile.js";
 
 export const ptStatsController = {
   getRevenueByYear,
   getStudentsByYear,
   getCompletedSessionsByYear,   // ✅ THÊM
-  getCancelRateByYear  
+  getCancelRateByYear,
+  getPTRatingStats  
 };
+/* ============================================================
+   0) RATING — LẤY TỪ PTProfile
+============================================================ */
+async function getPTRatingStats(req, res) {
+  try {
+    const ptId = req.user._id;
+
+    const profile = await PTProfile.findOne({ user: ptId })
+      .select("ratingAvg ratingCount")
+      .lean();
+
+    const averageRating = profile?.ratingAvg || 0;
+    const totalReviews = profile?.ratingCount || 0;
+
+    return res.json({
+      success: true,
+      averageRating,
+      totalReviews
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Server error" });
+  }
+}
 
 /* ============================================================
    1) DOANH THU THEO NĂM — LẤY THEO ptEarning (CHUẨN CHO PT)
@@ -18,10 +43,6 @@ async function getRevenueByYear(req, res) {
     const ptId = new mongoose.Types.ObjectId(req.user._id);  // ✅ FIX 1
     const year = req.query.year;
 
-    console.log("🔥 [PT-REVENUE] --- API CALLED ---");
-    console.log("🔥 year =", year);
-    console.log("🔥 ptId =", ptId);
-
     if (!year) {
       console.log("❌ Missing year");
       return res.status(400).json({ message: "Missing year" });
@@ -30,13 +51,6 @@ async function getRevenueByYear(req, res) {
     /* ---- FIX TIMEZONE CHUẨN ---- */
     const start = new Date(`${year}-01-01T00:00:00+07:00`);
     const end   = new Date(`${year}-12-31T23:59:59+07:00`);
-
-    console.log("⏳ Start date:", start);
-    console.log("⏳ End date:", end);
-
-    console.log("🔥 COLLECTION:", Transaction.collection.collectionName);
-    console.log("🔥 DB NAME:", Transaction.db.name);
-    console.log("🔥 TOTAL TRANSACTIONS:", await Transaction.countDocuments());
 
     /* ---- AGGREGATE DOANH THU ---- */
     const data = await Transaction.aggregate([
@@ -56,7 +70,6 @@ async function getRevenueByYear(req, res) {
       { $sort: { "_id.month": 1 } }
     ]);
 
-    console.log("📌 Aggregated revenue:", data);
 
     /* ---- TRẢ VỀ MẢNG 12 THÁNG ---- */
     const result = Array(12).fill(0);
@@ -67,7 +80,6 @@ async function getRevenueByYear(req, res) {
     res.json({ year, revenue: result });
 
   } catch (err) {
-    console.log("❌ [PT-REVENUE] ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 }
@@ -80,10 +92,6 @@ async function getStudentsByYear(req, res) {
     const ptId = new mongoose.Types.ObjectId(req.user._id);  // ✅ FIX 3
     const year = req.query.year;
 
-    console.log("🔥 [PT-STUDENTS] --- API CALLED ---");
-    console.log("🔥 year =", year);
-    console.log("🔥 ptId =", ptId);
-
     if (!year) {
       console.log("❌ Missing year");
       return res.status(400).json({ message: "Missing year" });
@@ -92,9 +100,6 @@ async function getStudentsByYear(req, res) {
     /* ---- FIX TIMEZONE CHUẨN ---- */
     const start = new Date(`${year}-01-01T00:00:00+07:00`);
     const end   = new Date(`${year}-12-31T23:59:59+07:00`);
-
-    console.log("⏳ Start date:", start);
-    console.log("⏳ End date:", end);
 
     /* ---- AGGREGATE STUDENTS ---- */
     const data = await StudentPackage.aggregate([
@@ -119,12 +124,9 @@ async function getStudentsByYear(req, res) {
     const result = Array(12).fill(0);
     data.forEach(i => result[i._id.month - 1] = i.count);
 
-    console.log("📊 Students array:", result);
-
     res.json({ year, students: result });
 
   } catch (err) {
-    console.log("❌ [PT-STUDENTS] ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 }

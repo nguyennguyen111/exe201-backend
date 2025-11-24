@@ -4,6 +4,7 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { getMyPTs } from "../controllers/studentController.js";
 import { studentController } from "~/controllers/studentController.js";
 import { getStudentProfile, getDefaultLocationByStudentId, upsertDefaultLocation } from "../controllers/studentController.js";
+import { updateBMIBySession, getBMIBySession, getBMIHistory } from "../controllers/studentBmiController.js";
 
 const router = express.Router();
 
@@ -20,6 +21,27 @@ router.post(
     authMiddleware.authenTokenCookie,
     authMiddleware.isStudent,
     studentController.updateBMI
+);
+
+router.post(
+  "/bmi/session",
+  authMiddleware.authenTokenCookie,
+  authMiddleware.isStudent,
+  updateBMIBySession
+);
+
+router.get(
+  "/bmi/session/:sessionId",
+  authMiddleware.authenTokenCookie,
+  authMiddleware.isStudent,
+  getBMIBySession
+);
+
+router.get(
+  "/bmi/history",
+  authMiddleware.authenTokenCookie,
+  authMiddleware.isStudent,
+  getBMIHistory
 );
 
 router.get(

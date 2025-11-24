@@ -45,7 +45,8 @@ export const createFeedback = async (req, res) => {
 
     await PTProfile.findOneAndUpdate(
       { user: pt },
-      { ratingAvg: avg.toFixed(1), ratingCount: allFeedbacks.length }
+      { ratingAvg: avg.toFixed(1), ratingCount: allFeedbacks.length },
+      { upsert: true }
     );
 
     res.status(201).json({

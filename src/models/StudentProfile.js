@@ -15,7 +15,18 @@ const studentProfileSchema = new Schema(
     goals: [String], // ví dụ: 'giảm mỡ', 'tăng cơ', 'sức bền'
 
     // Địa điểm mặc định khi tìm PT gần nhà
-    defaultLocation: { type: GeoPointSchema } // GeoJSON Point
+    defaultLocation: { type: GeoPointSchema }, // GeoJSON Point
+        bmiHistory: [
+      {
+        session: { type: Schema.Types.ObjectId, ref: "Session" },
+        heightCm: Number,
+        weightKg: Number,
+        bmi: Number,
+        note: String,
+        createdAt: { type: Date, default: Date.now }
+      }
+    ]
+
   },
   {
     timestamps: true,
