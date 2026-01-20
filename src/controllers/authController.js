@@ -151,21 +151,53 @@ export const registerByPhoneStart = async (req, res) => {
 
     const verifyUrl = `${env.CLIENT_URL}/verify-email?token=${token}`;
 
+    if (!env.EMAIL_USER || !env.EMAIL_PASS) {
+      console.error('[register/start] Missing EMAIL_USER/EMAIL_PASS');
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: 'Email config missing (EMAIL_USER/EMAIL_PASS)'
+      });
+    }
+
     const transporter = nodemailer.createTransport({
-      service: 'Gmail',
-      auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS }
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000
     });
 
-    await transporter.sendMail({
-      from: env.EMAIL_FROM || env.EMAIL_USER,
-      to: email,
-      subject: `Verify your ${finalRole.toUpperCase()} account`,
-      html: `
-        <p>Hello ${name},</p>
-        <p>You have 3 minutes to confirm your ${finalRole.toUpperCase()} registration.</p>
-        <p><a href="${verifyUrl}">${verifyUrl}</a></p>
-      `
-    });
+    try {
+      await transporter.verify();
+      console.log('[register/start] SMTP verified');
+    } catch (mailErr) {
+      console.error('[register/start] SMTP verify failed:', mailErr?.message || mailErr);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: 'Email service is not ready',
+        error: mailErr?.message || String(mailErr)
+      });
+    }
+
+    try {
+      await transporter.sendMail({
+        from: env.EMAIL_FROM || env.EMAIL_USER,
+        to: email,
+        subject: `Verify your ${finalRole.toUpperCase()} account`,
+        html: `
+          <p>Hello ${name},</p>
+          <p>You have 3 minutes to confirm your ${finalRole.toUpperCase()} registration.</p>
+          <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+        `
+      });
+      console.log('[register/start] Verification email sent to:', email);
+    } catch (sendErr) {
+      console.error('[register/start] Send mail failed:', sendErr?.message || sendErr);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: 'Failed to send verification email',
+        error: sendErr?.message || String(sendErr)
+      });
+    }
 
     return res.status(StatusCodes.CREATED).json({ message: 'Verification email sent' });
   } catch (err) {
