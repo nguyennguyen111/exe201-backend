@@ -23,8 +23,6 @@ router.post(
 // 3) FE confirm sau redirect
 router.post(
   '/payment/confirm',
-  authMiddleware.authenTokenCookie,
-  authMiddleware.isStudent,
   checkoutPTController.confirmPayment
 )
 
