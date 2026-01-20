@@ -18,6 +18,7 @@ export const env = {
   EMAIL_USER: process.env.EMAIL_USER,
   EMAIL_PASS: process.env.EMAIL_PASS,
   EMAIL_FROM: process.env.EMAIL_FROM,
+  RESEND_API_KEY: process.env.RESEND_API_KEY,
   ADMIN_EMAIL: process.env.ADMIN_EMAIL,
   IS_SERCURE_COOKIE: process.env.IS_SERCURE_COOKIE === 'true',
   COOKIE_SAMESITE: process.env.COOKIE_SAMESITE || 'lax',

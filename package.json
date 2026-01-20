@@ -48,7 +48,8 @@
     "openai": "^6.8.1",
     "socket.io": "^4.8.1",
     "babel-plugin-module-resolver": "^5.0.0",
-    "rimraf": "^6.1.2"
+    "rimraf": "^6.1.2",
+    "resend": "^3.4.0"
   },
 
   "devDependencies": {

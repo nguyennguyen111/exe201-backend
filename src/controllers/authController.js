@@ -5,7 +5,7 @@ import { genarateAccessToken } from '~/utils/genarateTokens'
 import { sendResetPasswordEmail } from '../utils/mailer'
 import { generateResetToken } from '../utils/genarateTokens'
 import crypto from 'crypto'
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import { OAuth2Client } from 'google-auth-library'
 import { env } from '~/config/environment'
 import PendingRegistration from '~/models/PendingRegistration'
@@ -151,38 +151,20 @@ export const registerByPhoneStart = async (req, res) => {
 
     const verifyUrl = `${env.CLIENT_URL}/verify-email?token=${token}`;
 
-    if (!env.EMAIL_USER || !env.EMAIL_PASS) {
-      console.error('[register/start] Missing EMAIL_USER/EMAIL_PASS');
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-        message: 'Email config missing (EMAIL_USER/EMAIL_PASS)'
-      });
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      requireTLS: true,
-      auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 20000
-    });
-
-    try {
-      await transporter.verify();
-      console.log('[register/start] SMTP verified');
-    } catch (mailErr) {
-      console.error('[register/start] SMTP verify failed:', mailErr?.message || mailErr);
+    if (!env.RESEND_API_KEY) {
+      console.error('[register/start] Missing RESEND_API_KEY');
       return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
         message: 'Email service is not ready',
-        error: mailErr?.message || String(mailErr)
+        error: 'Missing RESEND_API_KEY'
       });
     }
 
+    const resend = new Resend(env.RESEND_API_KEY);
+    const from = env.EMAIL_FROM || 'FitLink <onboarding@resend.dev>';
+
     try {
-      await transporter.sendMail({
-        from: env.EMAIL_FROM || env.EMAIL_USER,
+      const { error } = await resend.emails.send({
+        from,
         to: email,
         subject: `Verify your ${finalRole.toUpperCase()} account`,
         html: `
@@ -191,9 +173,18 @@ export const registerByPhoneStart = async (req, res) => {
           <p><a href="${verifyUrl}">${verifyUrl}</a></p>
         `
       });
-      console.log('[register/start] Verification email sent to:', email);
+
+      if (error) {
+        console.error('[register/start] Resend error:', error);
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+          message: 'Failed to send verification email',
+          error: error?.message || String(error)
+        });
+      }
+
+      console.log('[register/start] Verification email sent via Resend to:', email);
     } catch (sendErr) {
-      console.error('[register/start] Send mail failed:', sendErr?.message || sendErr);
+      console.error('[register/start] Resend send failed:', sendErr?.message || sendErr);
       return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
         message: 'Failed to send verification email',
         error: sendErr?.message || String(sendErr)
