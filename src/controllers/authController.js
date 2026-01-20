@@ -61,7 +61,7 @@ const loginWithGoogle = async (req, res) => {
         email,
         name,
         avatar: picture,
-        phone: '', // Google không trả phone
+        // Google không trả phone: để undefined để tránh unique index với chuỗi rỗng
         password: '', // không cần password
         isActive: true,
         role: Roles.STUDENT,
