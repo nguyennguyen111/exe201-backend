@@ -1,3 +1,5 @@
+require('module-alias/register')
+
 import express from "express";
 import { env } from "~/config/environment";
 import { errorHandlingMiddleware } from "~/middlewares/errorHandlingMiddleware";
